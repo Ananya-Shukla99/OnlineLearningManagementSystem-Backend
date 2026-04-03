@@ -1,501 +1,377 @@
-# Auth Service - EduLearn LMS Platform
+# Course Service
 
 ## Overview
 
-The Auth Service is a standalone microservice component of the EduLearn Learning Management System. This service is responsible for managing user authentication, authorization, and token generation within the platform. It serves as the security gateway for all protected operations across the EduLearn ecosystem.
+Course Service is a Spring Boot microservice responsible for managing online courses in the EduLearn Learning Management System. It provides RESTful APIs for creating, updating, publishing, searching, and retrieving courses with role-based access control.
 
-The Auth Service handles user registration, login, JWT token generation and validation, OAuth2 integration with Google, profile management, and password operations. Every protected operation in the LMS first passes through this service for authentication and role verification.
+## Architecture
 
-## Service Responsibilities
-
-- User registration with role assignment (Student, Instructor, Admin)
-- User authentication via email and password
-- JWT token generation and validation
-- Google OAuth2 authentication support
-- User profile management and updates
-- Password change and reset operations
-- Token refresh functionality
-- Role-based access control validation
+```
+Course Service (Port 8082)
+├── Controller Layer (REST Endpoints)
+├── Service Layer (Business Logic)
+├── Repository Layer (Database Access)
+└── Database (MySQL - edulearn_course)
+```
 
 ## Technology Stack
 
-- **Language**: Java 17
 - **Framework**: Spring Boot 3.5.13
+- **Language**: Java 21
 - **Database**: MySQL 8.0
-- **Security**: Spring Security, JWT (JJWT 0.12.3)
-- **ORM**: Spring Data JPA, Hibernate
-- **Authentication**: OAuth2 (Google)
+- **ORM**: Hibernate with Spring Data JPA
+- **Security**: Spring Security with JWT
+- **Documentation**: Springdoc OpenAPI (Swagger UI)
+- **Testing**: JUnit 5 with Mockito
 - **Build Tool**: Maven
-- **Testing**: JUnit 5, Mockito, Spring Boot Test
-- **API Documentation**: REST with JSON
 
-## Project Structure
+## Features
 
+### 1. Course Management
+- Create courses (Instructor only)
+- Update course details (Instructor only)
+- Publish courses for public viewing (Instructor only)
+- Delete courses (Instructor only)
+- View course details
+
+### 2. Course Discovery
+- Browse all published courses
+- Search courses by keyword (title and description)
+- Filter courses by category
+- Filter courses by instructor
+- View featured courses (top 6 most recent)
+- Get courses by difficulty level
+
+### 3. Course Fields
+- Course ID (auto-generated)
+- Title
+- Description
+- Category (e.g., Programming, Design, Business)
+- Level (Beginner, Intermediate, Advanced)
+- Price
+- Instructor ID
+- Thumbnail URL
+- Total Duration (in minutes)
+- Publication Status
+- Created Date
+- Language
+
+### 4. Security
+- Role-based access control (INSTRUCTOR, STUDENT, ADMIN)
+- JWT token validation
+- CORS enabled for cross-origin requests
+- CSRF protection disabled for API endpoints
+
+### 5. API Documentation
+- Interactive Swagger UI
+- OpenAPI 3.0 specification
+- All endpoints documented with descriptions and response codes
+
+## API Endpoints
+
+### Public Endpoints (No Authentication Required)
+
+#### Get All Published Courses
+```http
+GET /api/v1/courses
 ```
-auth-service/
-├── src/main/java/com/edulearn/auth/
-│   ├── entity/
-│   │   ├── User.java                 # User entity with JPA annotations
-│   │   └── UserRole.java             # Role enumeration (STUDENT, INSTRUCTOR, ADMIN)
-│   ├── repository/
-│   │   └── UserRepository.java       # Data access interface
-│   ├── service/
-│   │   ├── AuthService.java          # Service contract interface
-│   │   └── AuthServiceImpl.java       # Business logic implementation
-│   ├── controller/
-│   │   └── AuthController.java       # REST endpoint definitions
-│   ├── dto/
-│   │   ├── RegisterRequest.java      # Registration request DTO
-│   │   ├── LoginRequest.java         # Login request DTO
-│   │   └── AuthResponse.java         # Standard response DTO
-│   ├── util/
-│   │   └── JwtTokenProvider.java     # JWT token generation and validation
-│   ├── config/
-│   │   └── SecurityConfig.java       # Spring Security configuration
-│   └── AuthServiceApplication.java   # Spring Boot entry point
-├── src/test/java/com/edulearn/auth/
-│   ├── service/
-│   │   └── AuthServiceImplTest.java  # Unit tests for service layer
-│   └── controller/
-│       └── AuthControllerTest.java   # Integration tests for API endpoints
-├── src/main/resources/
-│   └── application.properties        # Application configuration
-├── pom.xml                           # Maven project configuration
-└── README.md                         # Project documentation
+Returns all published courses available to students.
+
+#### Get Course by ID
+```http
+GET /api/v1/courses/{id}
+```
+Retrieve details of a specific course.
+
+#### Search Courses
+```http
+GET /api/v1/courses/search?keyword={keyword}
+```
+Search courses by keyword in title and description.
+
+#### Get Courses by Category
+```http
+GET /api/v1/courses/category/{category}
+```
+Filter courses by category.
+
+#### Get Featured Courses
+```http
+GET /api/v1/courses/featured
+```
+Get top 6 most recently published courses.
+
+#### Get Courses by Instructor
+```http
+GET /api/v1/courses/instructor/{instructorId}
+```
+Get all published courses by a specific instructor.
+
+### Protected Endpoints (INSTRUCTOR Role Required)
+
+#### Create Course
+```http
+POST /api/v1/courses
+Content-Type: application/json
+Authorization: Bearer {JWT_TOKEN}
+
+{
+  "title": "Java Programming",
+  "description": "Learn Java from scratch",
+  "category": "Programming",
+  "level": "Beginner",
+  "price": 49.99,
+  "instructorId": 1,
+  "totalDuration": 120,
+  "language": "English"
+}
+```
+
+#### Update Course
+```http
+PUT /api/v1/courses/{id}
+Content-Type: application/json
+Authorization: Bearer {JWT_TOKEN}
+```
+
+#### Publish Course
+```http
+PUT /api/v1/courses/{id}/publish
+Authorization: Bearer {JWT_TOKEN}
+```
+Make a draft course visible to students.
+
+#### Delete Course
+```http
+DELETE /api/v1/courses/{id}
+Authorization: Bearer {JWT_TOKEN}
+```
+
+### Admin Endpoints (ADMIN Role Required)
+
+#### Get All Courses (Including Unpublished)
+```http
+GET /api/v1/courses/all
+Authorization: Bearer {JWT_TOKEN}
 ```
 
 ## Database Schema
 
-### Users Table
-
+### Courses Table
 ```sql
-CREATE TABLE users (
-    user_id BIGINT PRIMARY KEY AUTO_INCREMENT,
-    email VARCHAR(255) NOT NULL UNIQUE,
-    full_name VARCHAR(255) NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    role VARCHAR(50) NOT NULL ENUM('STUDENT', 'INSTRUCTOR', 'ADMIN'),
-    mobile VARCHAR(20),
-    bio VARCHAR(500),
-    profile_pic_url VARCHAR(500),
-    provider VARCHAR(50),
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+CREATE TABLE courses (
+  course_id INT PRIMARY KEY AUTO_INCREMENT,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  category VARCHAR(100) NOT NULL,
+  level VARCHAR(50) NOT NULL,
+  price DOUBLE NOT NULL,
+  instructor_id INT NOT NULL,
+  thumbnail_url VARCHAR(500),
+  total_duration INT NOT NULL,
+  is_published BOOLEAN DEFAULT FALSE,
+  created_at DATE NOT NULL,
+  language VARCHAR(50)
 );
 ```
 
-### Key Attributes
-
-- **user_id**: Unique identifier for each user
-- **email**: Unique email address for user identification
-- **full_name**: User's full name
-- **password_hash**: BCrypt encrypted password (never stored in plain text)
-- **role**: User role defining access permissions
-- **provider**: Authentication provider (local, google, github, etc.)
-- **created_at**: Account creation timestamp
-- **updated_at**: Last modification timestamp
-
-## REST API Endpoints
-
-All endpoints are prefixed with `/api/v1/auth`
-
-### 1. User Registration
-
-**Endpoint**: POST /auth/register
-**Authentication**: None (Public)
-**CSRF Protection**: Disabled for registration
-
-**Request Body**:
-```json
-{
-  "email": "user@example.com",
-  "fullName": "John Doe",
-  "password": "securePassword123",
-  "role": "STUDENT"
-}
-```
-
-**Response** (201 Created):
-```json
-{
-  "success": true,
-  "message": "User registered successfully",
-  "userId": 1,
-  "email": "user@example.com",
-  "fullName": "John Doe",
-  "role": "STUDENT"
-}
-```
-
-**Error Response** (400 Bad Request):
-```json
-{
-  "success": false,
-  "message": "User already exists with email: user@example.com"
-}
-```
-
-### 2. User Login
-
-**Endpoint**: POST /auth/login
-**Authentication**: None (Public)
-**CSRF Protection**: Disabled for login
-
-**Request Body**:
-```json
-{
-  "email": "user@example.com",
-  "password": "securePassword123"
-}
-```
-
-**Response** (200 OK):
-```json
-{
-  "success": true,
-  "message": "Login successful",
-  "token": "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9...",
-  "userId": 1,
-  "email": "user@example.com",
-  "fullName": "John Doe",
-  "role": "STUDENT"
-}
-```
-
-**Error Response** (401 Unauthorized):
-```json
-{
-  "success": false,
-  "message": "Invalid password"
-}
-```
-
-### 3. Token Validation
-
-**Endpoint**: GET /auth/validate
-**Authentication**: None (Public)
-**Query Parameters**: token (JWT token string)
-
-**Request**:
-```
-GET /api/v1/auth/validate?token=eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9...
-```
-
-**Response** (200 OK):
-```json
-{
-  "success": true,
-  "message": "Token is valid",
-  "userId": 1
-}
-```
-
-**Error Response** (401 Unauthorized):
-```json
-{
-  "success": false,
-  "message": "Invalid JWT token: Token expired"
-}
-```
-
-### 4. Token Refresh
-
-**Endpoint**: POST /auth/refresh
-**Authentication**: None (Public)
-**Query Parameters**: token (Valid JWT token)
-
-**Request**:
-```
-POST /api/v1/auth/refresh?token=eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9...
-```
-
-**Response** (200 OK):
-```json
-{
-  "success": true,
-  "message": "Token refreshed successfully",
-  "token": "eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9..."
-}
-```
-
-## Security Implementation
-
-### Password Security
-
-Passwords are encrypted using BCrypt algorithm with a strength factor of 10. Plain text passwords are never stored in the database. Each password undergoes one-way hashing before persistence.
-
-### JWT Token Structure
-
-JWT tokens are composed of three parts:
-
-1. **Header**: Algorithm (HS512) and token type
-2. **Payload**: User ID, email, role, issuance time, expiration time
-3. **Signature**: HMAC-SHA512 signature using the configured secret key
-
-**Token Configuration**:
-- Algorithm: HMAC-SHA512
-- Expiration: 24 hours (86400000 milliseconds)
-- Claims: userId (subject), email, role
-
-**Token Example**:
-```
-eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.
-eyJzdWIiOiIxIiwiZW1haWwiOiJ1c2VyQGV4YW1wbGUuY29tIiwicm9sZSI6IlNUVURFTlQiLCJpYXQiOjE3MTIxMjAwMDAsImV4cCI6MTcxMjIwNjQwMH0.
-signature_here
-```
-
-### CSRF Protection
-
-CSRF (Cross-Site Request Forgery) protection is disabled for REST API endpoints as recommended for stateless token-based APIs. Client-side token-based authentication serves as the security mechanism.
-
-### Role-Based Access Control
-
-Three roles are defined with hierarchical permissions:
-
-- **STUDENT**: Can enroll in courses, watch lessons, take quizzes, track progress
-- **INSTRUCTOR**: Can create and manage courses, view student progress, moderate forums
-- **ADMIN**: Full platform access including user management and analytics
-
-### OAuth2 Integration
-
-Google OAuth2 is configured for third-party authentication. Users can authenticate using their Google account, eliminating the need for password management for those users.
-
-**Configured Provider**: Google
-**Required Credentials**: Client ID, Client Secret (configured in application.properties)
-
 ## Configuration
 
-### Application Properties
-
-Key configuration parameters in `application.properties`:
+### application.properties
 
 ```properties
-server.port=8081
+server.port=8082
 server.servlet.context-path=/api/v1
 
-spring.datasource.url=jdbc:mysql://localhost:3306/edulearn_auth
+spring.datasource.url=jdbc:mysql://localhost:3306/edulearn_course
 spring.datasource.username=root
 spring.datasource.password=root123
 
 spring.jpa.hibernate.ddl-auto=update
-spring.jpa.database-platform=org.hibernate.dialect.MySQL8Dialect
-
-jwt.secret=mySecretKeyForJWTAuthentication...
-jwt.expiration=86400000
-
-spring.application.name=auth-service
+spring.jpa.show-sql=false
 ```
 
-### Database Connection
+### JWT Configuration
+- Secret Key: `mySecretKeyForJWTAuthenticationInEduLearnMicroserviceArchitecture2024SuperSecureKey123!@#`
+- Token Expiration: 24 hours
+- Algorithm: HS256
 
-The service requires a MySQL database running on localhost:3306. The database `edulearn_auth` is created automatically if it does not exist. The `users` table is created by Hibernate based on the User entity annotations.
-
-## Setup Instructions
+## Running the Service
 
 ### Prerequisites
+- Java 21
+- Maven 3.6+
+- MySQL 8.0+
 
-- Java 17 or higher
-- Maven 3.6 or higher
-- MySQL 8.0 or higher
-- Git
+### Build
+```bash
+cd course-service
+./mvnw clean package -DskipTests
+```
 
-### Installation Steps
+### Run
+```bash
+./mvnw spring-boot:run
+```
 
-1. Clone the repository
-   ```bash
-   git clone <repository-url>
-   cd auth-service
-   ```
-
-2. Ensure MySQL is running
-   ```bash
-   # Windows
-   net start MySQL80
-   
-   # Linux
-   sudo systemctl start mysql
-   ```
-
-3. Build the project
-   ```bash
-   mvn clean install
-   ```
-
-4. Run the application
-   ```bash
-   mvn spring-boot:run
-   ```
-   
-   Or using Java directly:
-   ```bash
-   java -jar target/auth-service-0.0.1-SNAPSHOT.jar
-   ```
-
-5. Verify the service is running
-   ```bash
-   curl http://localhost:8081/api/v1/auth/validate?token=test
-   ```
+### Access Swagger UI
+```
+http://localhost:8082/api/v1/swagger-ui.html
+```
 
 ## Testing
 
-### Unit Tests
-
-Unit tests verify the business logic of the AuthService layer using Mockito for mocking dependencies.
-
-Run unit tests:
+### Run Tests
 ```bash
-mvn test -Dtest=AuthServiceImplTest
+./mvnw test
 ```
 
-**Test Coverage**:
-- User registration success and failure scenarios
-- User login with valid and invalid credentials
-- Password verification and encryption
-- Token generation and validation
-- User retrieval operations
+### Test Coverage
+- 11 Controller Tests (REST endpoints)
+- 16 Service Tests (business logic)
+- Total: 27 test cases
 
-### Integration Tests
+### Test Results
+- Public endpoints: Pass without authentication
+- Protected endpoints: Pass with @WithMockUser(roles = "INSTRUCTOR")
+- Error handling: All exception cases covered
 
-Integration tests verify the complete request-response cycle of REST endpoints with Spring Boot test context.
+## Project Structure
 
-Run integration tests:
-```bash
-mvn test -Dtest=AuthControllerTest
+```
+course-service/
+├── src/
+│   ├── main/
+│   │   ├── java/com/edulearn/course/
+│   │   │   ├── controller/
+│   │   │   │   └── CourseController.java
+│   │   │   ├── service/
+│   │   │   │   ├── CourseService.java (Interface)
+│   │   │   │   └── CourseServiceImpl.java
+│   │   │   ├── repository/
+│   │   │   │   └── CourseRepository.java
+│   │   │   ├── entity/
+│   │   │   │   └── Course.java
+│   │   │   ├── config/
+│   │   │   │   ├── SecurityConfig.java
+│   │   │   │   └── JwtAuthenticationFilter.java
+│   │   │   └── CourseServiceApplication.java
+│   │   └── resources/
+│   │       └── application.properties
+│   └── test/
+│       └── java/com/edulearn/course/
+│           ├── controller/
+│           │   └── CourseControllerTest.java
+│           └── service/
+│               └── CourseServiceImplTest.java
+├── pom.xml
+└── README.md
 ```
 
-**Test Coverage**:
-- POST /auth/register endpoint
-- POST /auth/login endpoint
-- POST /auth/login failure scenarios
-- GET /auth/validate endpoint
+## Integration with Other Services
 
-### Run All Tests
+### Auth Service Communication
+- Course Service validates JWT tokens using the same secret key
+- Instructor role verification happens at the JWT filter level
+- User information extracted from JWT claims
 
-```bash
-mvn test
+### Future Integrations
+- Enrollment Service: Track student enrollments
+- Payment Service: Handle course payments
+- Rating Service: Manage course reviews and ratings
+- Notification Service: Send course updates to students
+
+## Error Handling
+
+The service returns standardized error responses:
+
+```json
+{
+  "success": false,
+  "message": "Error description",
+  "timestamp": "2026-04-03T10:30:00"
+}
 ```
-
-Expected output:
-```
-Tests run: 9, Failures: 0, Errors: 0, Skipped: 0
-```
-
-## Service Startup
-
-When the application starts, the following sequence occurs:
-
-1. Spring Boot initializes the context
-2. DataSource connects to MySQL database
-3. Hibernate creates/updates the users table schema
-4. Spring Security configuration is applied
-5. JWT configuration is loaded from application.properties
-6. Tomcat embedded server starts on port 8081
-7. REST endpoints become available
-
-**Expected Console Output**:
-```
-Started AuthServiceApplication in X.XXX seconds
-Tomcat started on port(s): 8081 (http)
-```
-
-## Accessing the API
-
-Once running, access the API using any HTTP client:
-
-### Using cURL
-
-```bash
-# Register
-curl -X POST http://localhost:8081/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"email":"user@example.com","fullName":"John Doe","password":"pass123","role":"STUDENT"}'
-
-# Login
-curl -X POST http://localhost:8081/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"user@example.com","password":"pass123"}'
-```
-
-### Using Postman
-
-1. Import the REST endpoints into Postman
-2. Set request method (POST, GET, etc.)
-3. Set request URL with parameters
-4. Set Content-Type header to application/json for POST requests
-5. Provide request body as JSON
-6. Click Send to execute the request
-
-## Troubleshooting
-
-### MySQL Connection Error
-
-**Error**: Connection refused
-**Solution**: Ensure MySQL service is running on localhost:3306
-
-### Invalid JWT Token Error
-
-**Cause**: Token expired or malformed
-**Solution**: Generate a new token by logging in again
-
-### 403 Forbidden on POST Requests
-
-**Cause**: CSRF protection enabled
-**Solution**: CSRF is already disabled in SecurityConfig
-
-### Port Already in Use
-
-**Error**: Address already in use
-**Solution**: Change port in application.properties or kill process using port 8081
-
-## Future Enhancements
-
-- Implement token blacklist for logout functionality
-- Add email verification for new registrations
-- Implement password reset via email
-- Add two-factor authentication support
-- Implement rate limiting on login attempts
-- Add audit logging for security events
-- Integrate with external LDAP/ActiveDirectory
-
-## Architecture Notes
-
-The Auth Service follows the layered microservices architecture pattern:
-
-- **Controller Layer**: REST endpoint exposure
-- **Service Layer**: Business logic and orchestration
-- **Repository Layer**: Data access abstraction
-- **Entity Layer**: Domain model and persistence mapping
-- **Config Layer**: Spring configuration and security setup
-- **Util Layer**: Utility components (JWT token provider)
-
-Each layer has clear separation of concerns and dependencies flow from top to bottom.
 
 ## Performance Considerations
 
-- JWT tokens are stateless, eliminating database queries for validation
-- Password hashing uses BCrypt with configurable strength (currently 10 rounds)
-- Database connections are pooled using HikariCP
-- MySQL indexes on email field for fast user lookups
+1. Database indexes on frequently queried columns (title, category, instructor_id)
+2. Pagination support for large result sets
+3. Connection pooling with HikariCP
+4. Query optimization with proper JPA relationships
 
-## Dependencies
+## Security Features
 
-Key external dependencies:
+1. JWT-based authentication
+2. Role-based access control (RBAC)
+3. CORS configuration for cross-origin requests
+4. CSRF protection disabled (token-based API)
+5. SQL injection prevention through parameterized queries
+6. XSS protection through JSON responses only
 
-- spring-boot-starter-web: Web and REST support
-- spring-boot-starter-data-jpa: Database access
-- spring-boot-starter-security: Authentication and authorization
-- spring-boot-starter-oauth2-client: OAuth2 support
-- mysql-connector-java: MySQL database driver
-- jjwt: JWT token handling
-- lombok: Boilerplate code reduction
+## Deployment
 
-## Support and Maintenance
+### Build Docker Image
+```bash
+./mvnw clean package
+docker build -t course-service:1.0 .
+```
 
-For issues, bug reports, or feature requests, refer to the main EduLearn project repository.
+### Run in Docker
+```bash
+docker run -p 8082:8082 \
+  -e SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/edulearn_course \
+  -e SPRING_DATASOURCE_USERNAME=root \
+  -e SPRING_DATASOURCE_PASSWORD=root123 \
+  course-service:1.0
+```
+
+## Troubleshooting
+
+### Connection Refused (Port 8082)
+- Ensure MySQL is running
+- Check if another service is using port 8082
+- Verify application.properties database configuration
+
+### JWT Token Invalid
+- Verify the secret key matches auth-service
+- Check token expiration time
+- Ensure Authorization header format: `Bearer {token}`
+
+### 403 Forbidden Error
+- User doesn't have required role
+- JWT token not included in Authorization header
+- Token has expired
+
+## Future Enhancements
+
+1. Course prerequisites and dependencies
+2. Course progress tracking
+3. Course certificates
+4. Bulk course imports
+5. Course versioning
+6. Advanced search with filters
+7. Course recommendations
+8. Analytics and reporting
+
+## Contributing
+
+1. Follow Spring Boot best practices
+2. Add tests for new features
+3. Update documentation
+4. Use meaningful commit messages
+
+## License
+
+This project is part of the EduLearn Learning Management System.
+
+## Support
+
+For issues or questions, please contact the development team or refer to the main project documentation.
 
 ---
 
-**Version**: 1.0.0
-**Last Updated**: April 3, 2026
+**Last Updated**: April 3, 2026  
+**Version**: 1.0.0  
 **Status**: Production Ready
 
