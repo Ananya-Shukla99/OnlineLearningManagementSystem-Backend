@@ -354,24 +354,5 @@ docker run -p 8082:8082 \
 7. Course recommendations
 8. Analytics and reporting
 
-## Contributing
-
-1. Follow Spring Boot best practices
-2. Add tests for new features
-3. Update documentation
-4. Use meaningful commit messages
-
-## License
-
-This project is part of the EduLearn Learning Management System.
-
-## Support
-
-For issues or questions, please contact the development team or refer to the main project documentation.
-
----
-
-**Last Updated**: April 3, 2026  
-**Version**: 1.0.0  
-**Status**: Production Ready
+```
 
