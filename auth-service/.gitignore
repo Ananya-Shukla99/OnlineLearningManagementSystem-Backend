@@ -18,6 +18,7 @@ target/
 *.iws
 *.iml
 *.ipr
+auth-service/SWAGGER_SETUP.md
 
 ### NetBeans ###
 /nbproject/private/
