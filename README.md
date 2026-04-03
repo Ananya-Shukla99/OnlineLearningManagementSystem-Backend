@@ -353,6 +353,3 @@ docker run -p 8082:8082 \
 6. Advanced search with filters
 7. Course recommendations
 8. Analytics and reporting
-
-```
-
