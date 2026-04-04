@@ -22,6 +22,9 @@ bin/
 /dist/
 /nbdist/
 /.nb-gradle/
+/mvnw
+/mvnw.cmd
+.gitattributes
 
 ### VS Code ###
 .vscode/
@@ -31,6 +34,7 @@ bin/
 
 .metadata/
 .idea/
+*.md
 *.iml
 target/
 bin/
@@ -38,4 +42,3 @@ bin/
 .project
 .classpath
 
-src/
