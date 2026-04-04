@@ -3,6 +3,7 @@ out/
 !**/src/main/**/out/
 !**/src/test/**/out/
 .kotlin
+*.env.example
 
 ### Eclipse ###
 .apt_generated
@@ -37,5 +38,3 @@ bin/
 .settings/
 .project
 .classpath
-
-src/
