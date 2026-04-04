@@ -38,4 +38,10 @@ bin/
 .project
 .classpath
 
-src/
+.classpath
+.idea/
+.metadata/
+.project
+OnlineLearningManagementSystem-Backend.im
+bin/
+
