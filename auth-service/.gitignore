@@ -1,8 +1,12 @@
 HELP.md
 target/
 .mvn/wrapper/maven-wrapper.jar
-!**/src/main/**/target/
-!**/src/test/**/target/
+
+# Environment variables and secrets
+.env
+.env.local
+.env.*.local
+/.env.example
 
 ### STS ###
 .apt_generated
@@ -27,8 +31,6 @@ auth-service/SWAGGER_SETUP.md
 /nbdist/
 /.nb-gradle/
 build/
-!**/src/main/**/build/
-!**/src/test/**/build/
 
 ### VS Code ###
 .vscode/
