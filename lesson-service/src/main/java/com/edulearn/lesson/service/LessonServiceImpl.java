@@ -1,16 +1,23 @@
 package com.edulearn.lesson.service;
 
-import com.edulearn.lesson.entity.Lesson;
-import com.edulearn.lesson.entity.Resource;
-import com.edulearn.lesson.repository.LessonRepository;
-import com.edulearn.lesson.repository.ResourceRepository;
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
 
-import java.util.List;
+import com.edulearn.auth.entity.User;
+import com.edulearn.auth.repository.UserRepository;
+import com.edulearn.lesson.entity.Lesson;
+import com.edulearn.lesson.entity.Resource;
+import com.edulearn.lesson.repository.LessonRepository;
+import com.edulearn.lesson.repository.ResourceRepository;
 
 @Service
 public class LessonServiceImpl implements LessonService {
@@ -21,11 +28,14 @@ public class LessonServiceImpl implements LessonService {
     @Autowired
     private ResourceRepository resourceRepository;
 
-    // For enrollment checking and user fetching (will be injected later)
-    // @Autowired
-    // private EnrollmentService enrollmentService;
-    // @Autowired
-    // private UserRepository userRepository;
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    @Value("${enrollment.service.url:http://localhost:8081/api/v1}")
+    private String enrollmentServiceUrl;
 
     @Override
     public Lesson addLesson(Lesson lesson) {
@@ -44,19 +54,23 @@ public class LessonServiceImpl implements LessonService {
 
         // ACCESS GATE: Check if lesson is preview or student is enrolled
         if (!lesson.getIsPreview()) {
-            // Lesson is paid - check enrollment (will be implemented in Part 3)
-            // String email = SecurityContextHolder.getContext().getAuthentication().getName();
-            // User user = userRepository.findByEmail(email)
-            //         .orElseThrow(() -> new RuntimeException("User not found"));
-            // if (!enrollmentService.isEnrolled(user.getUserId(), lesson.getCourseId())) {
-            //     throw new AccessDeniedException("Please enroll to access this lesson");
-            // }
+            // Lesson is paid - check enrollment via REST call to enrollment-service
+            String email = SecurityContextHolder.getContext().getAuthentication().getName();
+            User user = userRepository.findByEmail(email)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
+            // Call enrollment-service to check if student is enrolled
+            boolean isEnrolled = checkEnrollmentViaRest(user.getUserId(), lesson.getCourseId());
+
+            if (!isEnrolled) {
+                throw new AccessDeniedException("Please enroll to access this lesson");
+            }
         }
 
         return lesson;
     }
 
-    @Override
+	@Override
     public Lesson updateLesson(Integer lessonId, Lesson lesson) {
         Lesson existingLesson = lessonRepository.findById(lessonId)
                 .orElseThrow(() -> new RuntimeException("Lesson not found with ID: " + lessonId));
@@ -114,5 +128,45 @@ public class LessonServiceImpl implements LessonService {
         return allLessons.stream()
                 .filter(lesson -> lesson.getIsPreview())
                 .toList();
+    }
+
+    // Helper method to check enrollment via REST call to enrollment-service
+    private boolean checkEnrollmentViaRest(Long studentId, Integer courseId) {
+        try {
+            String url = enrollmentServiceUrl + "/enrollments/check?studentId=" + studentId + "&courseId=" + courseId;
+
+            // Get the current JWT token from security context
+            String token = SecurityContextHolder.getContext().getAuthentication().getCredentials().toString();
+
+            // Create headers with Authorization
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer " + token);
+            HttpEntity<String> entity = new HttpEntity<>(headers);
+
+            // Call enrollment-service
+            var response = restTemplate.getForEntity(url, EnrollmentCheckResponse.class, entity);
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+                return response.getBody().getData();
+            }
+            return false;
+        } catch (Exception e) {
+            // If enrollment service is down, deny access for safety
+            System.err.println("Error checking enrollment: " + e.getMessage());
+            return false;
+        }
+    }
+
+    // Inner class for deserialization
+    private static class EnrollmentCheckResponse {
+        private boolean data;
+
+        public boolean getData() {
+            return data;
+        }
+
+        public void setData(boolean data) {
+            this.data = data;
+        }
     }
 }

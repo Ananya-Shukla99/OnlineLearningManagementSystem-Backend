@@ -1,5 +1,8 @@
 package com.edulearn.lesson.service;
 
+import com.edulearn.auth.entity.User;
+import com.edulearn.auth.repository.UserRepository;
+import com.edulearn.enrollment.service.EnrollmentService;
 import com.edulearn.lesson.entity.Lesson;
 import com.edulearn.lesson.entity.Resource;
 import com.edulearn.lesson.repository.LessonRepository;
@@ -10,14 +13,17 @@ import org.junit.jupiter.api.DisplayName;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @DisplayName("Lesson Service Implementation Tests")
@@ -28,6 +34,12 @@ class LessonServiceImplTest {
 
     @Mock
     private ResourceRepository resourceRepository;
+
+    @Mock
+    private EnrollmentService enrollmentService;
+
+    @Mock
+    private UserRepository userRepository;
 
     @InjectMocks
     private LessonServiceImpl lessonService;
@@ -139,10 +151,10 @@ class LessonServiceImplTest {
     // ==================== getLessonById Tests ====================
 
     @Test
-    @DisplayName("Should get lesson by ID successfully")
-    void testGetLessonById() {
+    @DisplayName("Should get preview lesson without enrollment check")
+    void testGetPreviewLessonById() {
         // Arrange
-        testLesson.setIsPreview(true); // Preview lesson - no enrollment check
+        testLesson.setIsPreview(true); // Preview lesson - no enrollment check needed
         when(lessonRepository.findById(1)).thenReturn(Optional.of(testLesson));
 
         // Act
@@ -152,7 +164,71 @@ class LessonServiceImplTest {
         assertNotNull(result);
         assertEquals(1, result.getLessonId());
         assertEquals("Java Basics", result.getTitle());
-        verify(lessonRepository, times(1)).findById(1);
+        assertTrue(result.getIsPreview());
+        // Enrollment service should NOT be called for preview lessons
+        verify(enrollmentService, never()).isEnrolled(anyLong(), anyInt());
+        verify(userRepository, never()).findByEmail(anyString());
+    }
+
+    @Test
+    @DisplayName("Should allow enrolled student to access paid lesson")
+    void testGetPaidLessonWhenEnrolled() {
+        // Arrange
+        testLesson.setIsPreview(false); // Paid lesson - requires enrollment
+        User testUser = new User();
+        testUser.setUserId(10L);
+        testUser.setEmail("student@test.com");
+
+        Authentication auth = mock(Authentication.class);
+        SecurityContext securityContext = mock(SecurityContext.class);
+
+        when(lessonRepository.findById(1)).thenReturn(Optional.of(testLesson));
+        when(securityContext.getAuthentication()).thenReturn(auth);
+        when(auth.getName()).thenReturn("student@test.com");
+        when(userRepository.findByEmail("student@test.com")).thenReturn(Optional.of(testUser));
+        when(enrollmentService.isEnrolled(10L, 5)).thenReturn(true);
+
+        SecurityContextHolder.setContext(securityContext);
+
+        // Act
+        Lesson result = lessonService.getLessonById(1, 10);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(1, result.getLessonId());
+        assertFalse(result.getIsPreview());
+        verify(enrollmentService, times(1)).isEnrolled(10L, 5);
+        verify(userRepository, times(1)).findByEmail("student@test.com");
+    }
+
+    @Test
+    @DisplayName("Should deny unenrolled student from accessing paid lesson")
+    void testGetPaidLessonWhenNotEnrolled() {
+        // Arrange
+        testLesson.setIsPreview(false); // Paid lesson - requires enrollment
+        User testUser = new User();
+        testUser.setUserId(10L);
+        testUser.setEmail("student@test.com");
+
+        Authentication auth = mock(Authentication.class);
+        SecurityContext securityContext = mock(SecurityContext.class);
+
+        when(lessonRepository.findById(1)).thenReturn(Optional.of(testLesson));
+        when(securityContext.getAuthentication()).thenReturn(auth);
+        when(auth.getName()).thenReturn("student@test.com");
+        when(userRepository.findByEmail("student@test.com")).thenReturn(Optional.of(testUser));
+        when(enrollmentService.isEnrolled(10L, 5)).thenReturn(false);
+
+        SecurityContextHolder.setContext(securityContext);
+
+        // Act & Assert
+        AccessDeniedException exception = assertThrows(AccessDeniedException.class, () -> {
+            lessonService.getLessonById(1, 10);
+        });
+
+        assertEquals("Please enroll to access this lesson", exception.getMessage());
+        verify(enrollmentService, times(1)).isEnrolled(10L, 5);
+        verify(userRepository, times(1)).findByEmail("student@test.com");
     }
 
     @Test
@@ -170,20 +246,6 @@ class LessonServiceImplTest {
         verify(lessonRepository, times(1)).findById(999);
     }
 
-    @Test
-    @DisplayName("Should return preview lesson without enrollment check")
-    void testGetPreviewLessonBypass() {
-        // Arrange
-        testLesson.setIsPreview(true);
-        when(lessonRepository.findById(1)).thenReturn(Optional.of(testLesson));
-
-        // Act
-        Lesson result = lessonService.getLessonById(1, 1);
-
-        // Assert
-        assertNotNull(result);
-        assertTrue(result.getIsPreview());
-    }
 
     // ==================== updateLesson Tests ====================
 

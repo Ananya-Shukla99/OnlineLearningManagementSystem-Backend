@@ -37,6 +37,10 @@ bin/
 .settings/
 .project
 .classpath
+/mvnw
+/mvnw.cmd
+
+*.env.example
 *.env
 *.json
 *.bat
