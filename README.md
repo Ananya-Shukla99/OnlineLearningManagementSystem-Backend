@@ -13,21 +13,21 @@ The Assessment Service handles:
 
 ## Features
 
-### 🎯 Core Features
-- ✅ **Quiz CRUD Operations** - Full lifecycle management
-- ✅ **Question Management** - Support for multiple question types
-- ✅ **Auto-Grading Engine** - Instant result calculation
-- ✅ **Attempt Management** - Start, submit, and track attempts
-- ✅ **Time Management** - Redis-based TTL for attempt timeouts
-- ✅ **Cascading Delete** - Questions deleted with quiz
-- ✅ **Best Score Tracking** - Get highest score per student/quiz
-- ✅ **Multi-attempt Support** - Configurable max attempts per quiz
+### Core Features
+-  **Quiz CRUD Operations** - Full lifecycle management
+-  **Question Management** - Support for multiple question types
+-  **Auto-Grading Engine** - Instant result calculation
+-  **Attempt Management** - Start, submit, and track attempts
+-  **Time Management** - Redis-based TTL for attempt timeouts
+-  **Cascading Delete** - Questions deleted with quiz
+-  **Best Score Tracking** - Get highest score per student/quiz
+-  **Multi-attempt Support** - Configurable max attempts per quiz
 
-### 🧪 Quality Assurance
-- ✅ **64 Comprehensive Tests** - Unit, Integration, and Repository tests
-- ✅ **100% API Coverage** - All endpoints tested
-- ✅ **Auto-Grading Tests** - MCQ_SINGLE, MCQ_MULTI, TRUE_FALSE
-- ✅ **H2 Database** - In-memory testing database
+###  Quality Assurance
+-  **64 Comprehensive Tests** - Unit, Integration, and Repository tests
+-  **100% API Coverage** - All endpoints tested
+-  **Auto-Grading Tests** - MCQ_SINGLE, MCQ_MULTI, TRUE_FALSE
+-  **H2 Database** - In-memory testing database
 
 ## Architecture
 
@@ -374,12 +374,12 @@ open target/site/surefire-report.html
 - Publish quizzes
 - List quizzes by course
 
-✅ **Question Management**
+ **Question Management**
 - Add questions to quiz
 - Retrieve ordered questions
 - Update and delete questions
 
-✅ **Attempt Management**
+ **Attempt Management**
 - Start new attempts
 - Track max attempts
 - Auto-grade MCQ_SINGLE answers
