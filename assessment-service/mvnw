@@ -1,0 +1,23 @@
+#!/bin/sh
+# Licensed to the Apache Software Foundation (ASF)
+
+basedir=`dirname "$0"`
+
+# Determine the java command to use
+if [ -n "$JAVA_HOME" ] ; then
+    if [ -x "$JAVA_HOME/jre/sh/java" ] ; then
+        JAVA="$JAVA_HOME/jre/sh/java"
+    else
+        JAVA="$JAVA_HOME/bin/java"
+    fi
+else
+    JAVA="java"
+fi
+
+exec "$JAVA" \
+  $MAVEN_OPTS \
+  -classpath "$basedir/.mvn/wrapper/maven-wrapper.jar" \
+  "-Dmaven.home=$basedir/.mvn" \
+  "-Dmaven.multiModuleProjectDirectory=$basedir" \
+  org.apache.maven.wrapper.MavenWrapperMain "$@"
+
