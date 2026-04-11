@@ -9,10 +9,10 @@
 		<relativePath/>
 	</parent>
 	<groupId>com.edulearn</groupId>
-	<artifactId>enrollment-service</artifactId>
+	<artifactId>lesson-service</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>Enrollment Service</name>
-	<description>Enrollment Management Microservice</description>
+	<name>Lesson Service</name>
+	<description>Lesson Management Microservice</description>
 	<properties>
 		<java.version>17</java.version>
 	</properties>

@@ -41,3 +41,7 @@ bin/
 *.json
 *.bat
 *.md
+
+apache-maven-3.8.1/
+*.bak
+*.env.example

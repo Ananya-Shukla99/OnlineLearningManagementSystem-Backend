@@ -12,17 +12,17 @@
 	</parent>
 
 	<groupId>com.edulearn</groupId>
-	<artifactId>assessment-service</artifactId>
+	<artifactId>progress-service</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>assessment-service</name>
-	<description>Assessment/Quiz Service for Online Learning Management System</description>
+	<name>progress-service</name>
+	<description>Progress/Certificate Service for Online Learning Management
+		System</description>
 
 	<properties>
 		<java.version>17</java.version>
 		<maven.compiler.source>17</maven.compiler.source>
 		<maven.compiler.target>17</maven.compiler.target>
 	</properties>
-
 
 	<dependencies>
 		<!-- Spring Boot Web -->
@@ -35,12 +35,6 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-jpa</artifactId>
-		</dependency>
-
-		<!-- Spring Boot Data Redis -->
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-data-redis</artifactId>
 		</dependency>
 
 		<!-- MySQL Connector -->
@@ -73,6 +67,14 @@
 			<groupId>com.fasterxml.jackson.datatype</groupId>
 			<artifactId>jackson-datatype-jsr310</artifactId>
 		</dependency>
+
+		<!-- Apache PDFBox for PDF generation -->
+		<dependency>
+			<groupId>org.apache.pdfbox</groupId>
+			<artifactId>pdfbox</artifactId>
+			<version>2.0.29</version>
+		</dependency>
+
 		<dependency>
 			<groupId>io.jsonwebtoken</groupId>
 			<artifactId>jjwt-impl</artifactId>
@@ -93,14 +95,6 @@
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
 
-		<!-- Redis Embedded for Testing -->
-		<dependency>
-			<groupId>it.ozimov</groupId>
-			<artifactId>embedded-redis</artifactId>
-			<version>0.7.3</version>
-			<scope>test</scope>
-		</dependency>
-
 		<!-- Spring Boot Test -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -115,42 +109,11 @@
 			<scope>test</scope>
 		</dependency>
 
-		<!-- JUnit 5 -->
-		<dependency>
-			<groupId>org.junit.jupiter</groupId>
-			<artifactId>junit-jupiter-api</artifactId>
-			<scope>test</scope>
-		</dependency>
-
-		<dependency>
-			<groupId>org.junit.jupiter</groupId>
-			<artifactId>junit-jupiter-engine</artifactId>
-			<scope>test</scope>
-		</dependency>
-
-		<!-- Mockito -->
-		<dependency>
-			<groupId>org.mockito</groupId>
-			<artifactId>mockito-core</artifactId>
-			<scope>test</scope>
-		</dependency>
-
-		<dependency>
-			<groupId>org.mockito</groupId>
-			<artifactId>mockito-junit-jupiter</artifactId>
-			<scope>test</scope>
-		</dependency>
-
 		<!-- H2 Database for Testing -->
 		<dependency>
 			<groupId>com.h2database</groupId>
 			<artifactId>h2</artifactId>
 			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>com.edulearn</groupId>
-			<artifactId>auth-service</artifactId>
-			<version>0.0.1-SNAPSHOT</version>
 		</dependency>
 
 		<!-- SpringDoc OpenAPI (Swagger 3.0) -->
@@ -160,18 +123,43 @@
 			<version>2.0.2</version>
 		</dependency>
 
-		<!-- Razorpay Payment Gateway -->
+		<!-- Auth Service Dependency -->
 		<dependency>
-			<groupId>com.razorpay</groupId>
-			<artifactId>razorpay-java</artifactId>
-			<version>1.4.3</version>
+			<groupId>com.edulearn</groupId>
+			<artifactId>auth-service</artifactId>
+			<version>0.0.1-SNAPSHOT</version>
 		</dependency>
 
-		<!-- Apache PDFBox for Certificate Generation -->
+		<!-- Lesson Service Dependency -->
 		<dependency>
-			<groupId>org.apache.pdfbox</groupId>
-			<artifactId>pdfbox</artifactId>
-			<version>2.0.29</version>
+			<groupId>com.edulearn</groupId>
+			<artifactId>lesson-service</artifactId>
+			<version>0.0.1-SNAPSHOT</version>
+		</dependency>
+		
+		
+		<!-- Course Service Dependency -->
+		<dependency>
+			<groupId>com.edulearn</groupId>
+			<artifactId>course-service</artifactId>
+			<version>0.0.1-SNAPSHOT</version>
+		</dependency>
+
+		<!-- Enrollment Service Dependency -->
+		<dependency>
+			<groupId>com.edulearn</groupId>
+			<artifactId>enrollment-service</artifactId>
+			<version>0.0.1-SNAPSHOT</version>
+		</dependency>
+		<dependency>
+			<groupId>com.edulearn</groupId>
+			<artifactId>assessment-service</artifactId>
+			<version>0.0.1-SNAPSHOT</version>
+		</dependency>
+		<dependency>
+			<groupId>com.edulearn</groupId>
+			<artifactId>payment-service</artifactId>
+			<version>0.0.1-SNAPSHOT</version>
 		</dependency>
 	</dependencies>
 
@@ -204,18 +192,6 @@
 							<version>${lombok.version}</version>
 						</path>
 					</annotationProcessorPaths>
-				</configuration>
-			</plugin>
-
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-surefire-plugin</artifactId>
-				<version>2.22.2</version>
-				<configuration>
-					<includes>
-						<include>**/*Test.java</include>
-						<include>**/*Tests.java</include>
-					</includes>
 				</configuration>
 			</plugin>
 		</plugins>

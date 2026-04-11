@@ -12,8 +12,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
-import com.edulearn.auth.entity.User;
-import com.edulearn.auth.repository.UserRepository;
 import com.edulearn.lesson.entity.Lesson;
 import com.edulearn.lesson.entity.Resource;
 import com.edulearn.lesson.repository.LessonRepository;
@@ -29,12 +27,9 @@ public class LessonServiceImpl implements LessonService {
     private ResourceRepository resourceRepository;
 
     @Autowired
-    private UserRepository userRepository;
-
-    @Autowired
     private RestTemplate restTemplate;
 
-    @Value("${enrollment.service.url:http://localhost:8081/api/v1}")
+    @Value("${enrollment.service.url:http://localhost:8084/api/v1}")
     private String enrollmentServiceUrl;
 
     @Override
@@ -55,12 +50,10 @@ public class LessonServiceImpl implements LessonService {
         // ACCESS GATE: Check if lesson is preview or student is enrolled
         if (!lesson.getIsPreview()) {
             // Lesson is paid - check enrollment via REST call to enrollment-service
-            String email = SecurityContextHolder.getContext().getAuthentication().getName();
-            User user = userRepository.findByEmail(email)
-                    .orElseThrow(() -> new RuntimeException("User not found"));
+            String token = SecurityContextHolder.getContext().getAuthentication().getCredentials().toString();
 
             // Call enrollment-service to check if student is enrolled
-            boolean isEnrolled = checkEnrollmentViaRest(user.getUserId(), lesson.getCourseId());
+            boolean isEnrolled = checkEnrollmentViaRest(studentId, lesson.getCourseId(), token);
 
             if (!isEnrolled) {
                 throw new AccessDeniedException("Please enroll to access this lesson");
@@ -131,12 +124,10 @@ public class LessonServiceImpl implements LessonService {
     }
 
     // Helper method to check enrollment via REST call to enrollment-service
-    private boolean checkEnrollmentViaRest(Long studentId, Integer courseId) {
+    private boolean checkEnrollmentViaRest(Integer studentId, Integer courseId, String token) {
         try {
             String url = enrollmentServiceUrl + "/enrollments/check?studentId=" + studentId + "&courseId=" + courseId;
 
-            // Get the current JWT token from security context
-            String token = SecurityContextHolder.getContext().getAuthentication().getCredentials().toString();
 
             // Create headers with Authorization
             HttpHeaders headers = new HttpHeaders();
