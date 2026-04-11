@@ -1,561 +1,500 @@
-# Assessment Service
-
-A comprehensive Spring Boot microservice for managing quizzes, questions, and student attempts with **automatic grading** capabilities in the Online Learning Management System (OLMS).
+# Discussion Service
 
 ## Overview
 
-The Assessment Service handles:
-- **Quiz Management** - Create, update, publish, and delete quizzes
-- **Question Management** - Add, edit, and organize quiz questions
-- **Auto-Grading** - Automatic scoring for MCQ_SINGLE, MCQ_MULTI, and TRUE_FALSE questions
-- **Attempt Tracking** - Track student quiz attempts with time limits
-- **Score Analytics** - Get best scores and attempt history
-
-## Features
-
-### Core Features
--  **Quiz CRUD Operations** - Full lifecycle management
--  **Question Management** - Support for multiple question types
--  **Auto-Grading Engine** - Instant result calculation
--  **Attempt Management** - Start, submit, and track attempts
--  **Time Management** - Redis-based TTL for attempt timeouts
--  **Cascading Delete** - Questions deleted with quiz
--  **Best Score Tracking** - Get highest score per student/quiz
--  **Multi-attempt Support** - Configurable max attempts per quiz
-
-###  Quality Assurance
--  **64 Comprehensive Tests** - Unit, Integration, and Repository tests
--  **100% API Coverage** - All endpoints tested
--  **Auto-Grading Tests** - MCQ_SINGLE, MCQ_MULTI, TRUE_FALSE
--  **H2 Database** - In-memory testing database
+Discussion Service is a Spring Boot microservice responsible for managing course discussion forums in the EduLearn Learning Management System. It provides RESTful APIs for creating discussion threads, posting replies, and managing upvotes with role-based access control.
 
 ## Architecture
 
 ```
-assessment-service/
-├── src/
-│   ├── main/
-│   │   ├── java/com/edulearn/assessment/
-│   │   │   ├── AssessmentServiceApplication.java     (Main class)
-│   │   │   ├── controller/
-│   │   │   │   └── AssessmentController.java         (REST endpoints)
-│   │   │   ├── service/
-│   │   │   │   ├── AssessmentService.java           (Interface)
-│   │   │   │   └── AssessmentServiceImpl.java        (Implementation)
-│   │   │   ├── entity/
-│   │   │   │   ├── Quiz.java
-│   │   │   │   ├── Question.java
-│   │   │   │   └── Attempt.java
-│   │   │   ├── repository/
-│   │   │   │   ├── QuizRepository.java
-│   │   │   │   ├── QuestionRepository.java
-│   │   │   │   └── AttemptRepository.java
-│   │   │   └── config/
-│   │   │       └── RedisConfig.java
-│   │   └── resources/
-│   │       └── application.properties
-│   └── test/
-│       └── java/com/edulearn/assessment/
-│           ├── service/
-│           │   └── AssessmentServiceImplTest.java
-│           ├── controller/
-│           │   └── AssessmentControllerTest.java
-│           ├── repository/
-│           │   └── RepositoryTest.java
-│           └── AssessmentServiceIntegrationTest.java
-├── pom.xml
-├── mvnw
-├── mvnw.cmd
-├── TEST-DOCUMENTATION.md
-├── QUICK_TEST_GUIDE.md
-└── README.md
+Discussion Service (Port 8088)
+├── Controller Layer (REST Endpoints)
+├── Service Layer (Business Logic)
+├── Repository Layer (Database Access)
+└── Database (MySQL - edulearn_discussion)
 ```
 
 ## Technology Stack
 
-- **Framework**: Spring Boot 3.2.0
+- **Framework**: Spring Boot 3.5.13
 - **Language**: Java 17
-- **Database**: MySQL (production), H2 (testing)
-- **Cache**: Redis
-- **Testing**: JUnit 5, Mockito, Spring Test
-- **Build**: Maven
+- **Database**: MySQL 8.0
+- **ORM**: Hibernate with Spring Data JPA
+- **Security**: Spring Security with JWT
+- **Testing**: JUnit 5 with Mockito (35+ comprehensive tests)
+- **Documentation**: Springdoc OpenAPI (Swagger UI)
+- **Build Tool**: Maven
+- **Code Generation**: Lombok
 
-## Prerequisites
+## Features
 
-- Java 17+
-- MySQL 8.0+
-- Redis (optional, for production)
-- Maven 3.6+
+### 1. Discussion Thread Management
+- Create discussion threads in course forums
+- Update thread title and body
+- Delete threads with cascading cleanup
+- View all threads for a course (sorted by pinned status and creation date)
+- Thread linking to specific lessons or course-wide
 
-## Installation
+### 2. Thread Moderation
+- Pin/unpin important threads (INSTRUCTOR only)
+- Close/reopen threads (INSTRUCTOR only)
+- Delete threads (INSTRUCTOR only)
 
-### 1. Clone or Download
-```bash
-cd assessment-service
-```
+### 3. Reply Management
+- Post replies to discussion threads
+- Update and delete replies
+- Mark best answer (accepted reply)
+- Upvote replies with duplicate prevention
+- Sort replies by acceptance status, upvotes, and creation time
 
-### 2. Build the Project
-```bash
-mvn clean install
-```
+### 4. Upvote System
+- Track individual upvotes to prevent duplicates
+- Prevent same student from upvoting same reply twice
+- Increment/decrement reply upvote count
+- View upvote records by student or reply
 
-### 3. Configure Database
-Create MySQL database:
-```sql
-CREATE DATABASE assessment_service_db;
-```
+### 5. Security
+- Role-based access control (INSTRUCTOR, STUDENT, ADMIN)
+- JWT token validation
+- CORS enabled for cross-origin requests
+- Public read access for thread/reply lists
+- Protected write access (authentication required)
 
-Update `src/main/resources/application.properties`:
-```properties
-spring.datasource.url=jdbc:mysql://localhost:3306/assessment_service_db
-spring.datasource.username=root
-spring.datasource.password=root
-```
+## Entities
 
-### 4. Run Tests
-```bash
-mvn clean test
-```
+### DiscussionThread
+- `threadId` (int, PK): Auto-generated identifier
+- `courseId` (int): Which course this thread belongs to
+- `lessonId` (Integer, nullable): Optional specific lesson linkage
+- `authorId` (int): User ID of thread creator
+- `title` (String, max 255): Thread question/topic
+- `body` (TEXT): Full thread description
+- `isPinned` (boolean): Important threads pinned by instructors
+- `isClosed` (boolean): Closed threads reject new replies
+- `createdAt` (LocalDateTime): Auto-set on creation
+- `updatedAt` (LocalDateTime): Auto-updated on edits
 
-Expected output:
-```
-Tests run: 64, Failures: 0, Errors: 0
-```
+### Reply
+- `replyId` (int, PK): Auto-generated identifier
+- `threadId` (int): Foreign key to thread
+- `authorId` (int): User ID of reply author
+- `body` (TEXT): Reply content
+- `isAccepted` (boolean): Only one accepted answer per thread
+- `upvotes` (int): Total upvote count
+- `createdAt` (LocalDateTime): Auto-set on creation
 
-### 5. Start the Service
-```bash
-mvn spring-boot:run
-```
-or
-```bash
-java -jar target/assessment-service-0.0.1-SNAPSHOT.jar
-```
-
-Service runs on: `http://localhost:8083`
+### UpvoteRecord
+- `upvoteId` (int, PK): Auto-generated identifier
+- `replyId` (int): Which reply was upvoted
+- `studentId` (int): Who upvoted it
+- `createdAt` (LocalDateTime): When upvote happened
 
 ## API Endpoints
 
-### Quiz Management
+### Thread Endpoints
 
-#### Create Quiz
+#### Create Thread
 ```http
-POST /api/assessments/quiz
+POST /api/discussion/threads
+Authorization: Bearer {JWT_TOKEN}
 Content-Type: application/json
 
 {
   "courseId": 1,
-  "lessonId": 1,
-  "title": "Java Basics",
-  "description": "Test your Java knowledge",
-  "timeLimitMinutes": 30,
-  "passingScore": 70,
-  "maxAttempts": 3,
-  "isPublished": false
+  "lessonId": null,
+  "authorId": 101,
+  "title": "How to use loops?",
+  "body": "What's the difference between for and while loops?"
 }
 ```
+Response: 201 CREATED with thread object
 
-#### Get Quiz
+#### Get Threads by Course
 ```http
-GET /api/assessments/quiz/{quizId}
+GET /api/discussion/threads/course/{courseId}
+```
+Returns pinned threads first, then sorted by creation date (newest first)
+
+#### Get Threads by Lesson
+```http
+GET /api/discussion/threads/lesson/{lessonId}
+```
+Returns all threads linked to a specific lesson
+
+#### Get Thread by ID
+```http
+GET /api/discussion/threads/{threadId}
 ```
 
-#### Get Quizzes by Course
+#### Update Thread
 ```http
-GET /api/assessments/course/{courseId}/quizzes
+PUT /api/discussion/threads/{threadId}
+Authorization: Bearer {JWT_TOKEN}
 ```
 
-#### Update Quiz
+#### Delete Thread
 ```http
-PUT /api/assessments/quiz/{quizId}
+DELETE /api/discussion/threads/{threadId}
+Authorization: Bearer {JWT_TOKEN}
+PreAuthorize: INSTRUCTOR or ADMIN
+```
+
+#### Pin Thread
+```http
+PUT /api/discussion/threads/{threadId}/pin
+Authorization: Bearer {JWT_TOKEN}
+PreAuthorize: INSTRUCTOR or ADMIN
+```
+
+#### Unpin Thread
+```http
+PUT /api/discussion/threads/{threadId}/unpin
+Authorization: Bearer {JWT_TOKEN}
+PreAuthorize: INSTRUCTOR or ADMIN
+```
+
+#### Close Thread
+```http
+PUT /api/discussion/threads/{threadId}/close
+Authorization: Bearer {JWT_TOKEN}
+PreAuthorize: INSTRUCTOR or ADMIN
+```
+
+#### Reopen Thread
+```http
+PUT /api/discussion/threads/{threadId}/reopen
+Authorization: Bearer {JWT_TOKEN}
+PreAuthorize: INSTRUCTOR or ADMIN
+```
+
+#### Get Threads by Author
+```http
+GET /api/discussion/threads/author/{authorId}
+```
+
+#### Get Thread Count
+```http
+GET /api/discussion/threads/count/{courseId}
+```
+
+### Reply Endpoints
+
+#### Post Reply
+```http
+POST /api/discussion/replies
+Authorization: Bearer {JWT_TOKEN}
 Content-Type: application/json
 
 {
-  "title": "Updated Title",
-  "description": "Updated Description",
-  "timeLimitMinutes": 45,
-  "passingScore": 75,
-  "maxAttempts": 5
+  "threadId": 1,
+  "authorId": 102,
+  "body": "Use a for loop when you know the iterations..."
 }
 ```
+Response: 201 CREATED - Fails if thread is closed
 
-#### Delete Quiz
+#### Get Replies by Thread
 ```http
-DELETE /api/assessments/quiz/{quizId}
+GET /api/discussion/replies/thread/{threadId}
 ```
+Returns replies sorted by: acceptance status, upvotes (desc), creation time
 
-#### Publish Quiz
+#### Get Reply by ID
 ```http
-POST /api/assessments/quiz/{quizId}/publish
+GET /api/discussion/replies/{replyId}
 ```
 
-### Question Management
-
-#### Add Question
+#### Update Reply
 ```http
-POST /api/assessments/quiz/{quizId}/question
-Content-Type: application/json
-
-{
-  "questionText": "What is the capital of France?",
-  "questionType": "MCQ_SINGLE",
-  "options": "Paris,London,Berlin,Madrid",
-  "correctAnswer": "Paris",
-  "marks": 1,
-  "orderIndex": 1
-}
+PUT /api/discussion/replies/{replyId}
+Authorization: Bearer {JWT_TOKEN}
 ```
 
-Question Types:
-- `MCQ_SINGLE` - Single choice (case-insensitive match)
-- `MCQ_MULTI` - Multiple choice (comma-separated, order-independent)
-- `TRUE_FALSE` - Boolean question
-
-#### Get Questions
+#### Delete Reply
 ```http
-GET /api/assessments/quiz/{quizId}/questions
+DELETE /api/discussion/replies/{replyId}
+Authorization: Bearer {JWT_TOKEN}
+PreAuthorize: INSTRUCTOR or ADMIN
 ```
 
-#### Update Question
+#### Upvote Reply
 ```http
-PUT /api/assessments/question/{questionId}
-Content-Type: application/json
-
-{
-  "questionText": "Updated question",
-  "correctAnswer": "Updated Answer",
-  "marks": 2
-}
+PUT /api/discussion/replies/{replyId}/upvote?studentId={studentId}
+Authorization: Bearer {JWT_TOKEN}
+PreAuthorize: STUDENT
 ```
+- Fails if student already upvoted this reply
+- Increments reply.upvotes by 1
+- Creates UpvoteRecord for tracking
 
-#### Delete Question
+#### Accept Reply
 ```http
-DELETE /api/assessments/question/{questionId}
+PUT /api/discussion/replies/{replyId}/accept
+Authorization: Bearer {JWT_TOKEN}
+PreAuthorize: INSTRUCTOR or ADMIN
 ```
+- Only one accepted reply per thread
+- Auto-unaccepts previous answer if exists
 
-### Attempt Management
-
-#### Start Attempt
+#### Unaccept Reply
 ```http
-POST /api/assessments/quiz/{quizId}/start
-Content-Type: application/json
-
-{
-  "studentId": 101
-}
+PUT /api/discussion/replies/{replyId}/unaccept
+Authorization: Bearer {JWT_TOKEN}
+PreAuthorize: INSTRUCTOR or ADMIN
 ```
 
-Response:
-```json
-{
-  "attemptId": 1,
-  "quizId": 1,
-  "studentId": 101,
-  "score": 0,
-  "passed": false,
-  "startedAt": "2026-04-05T10:30:00"
-}
-```
-
-#### Submit Attempt
+#### Get Replies by Author
 ```http
-POST /api/assessments/attempt/{attemptId}/submit
-Content-Type: application/json
-
-{
-  "1": "Paris",
-  "2": "Option A,Option B",
-  "3": "true"
-}
+GET /api/discussion/replies/author/{authorId}
 ```
 
-Response:
-```json
-{
-  "attemptId": 1,
-  "quizId": 1,
-  "studentId": 101,
-  "score": 85,
-  "passed": true,
-  "startedAt": "2026-04-05T10:30:00",
-  "submittedAt": "2026-04-05T10:45:00",
-  "timeTaken": 900
-}
+## Database Schema
+
+### discussion_threads Table
+```sql
+CREATE TABLE discussion_threads (
+  thread_id INT PRIMARY KEY AUTO_INCREMENT,
+  course_id INT NOT NULL,
+  lesson_id INT,
+  author_id INT NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  body TEXT,
+  is_pinned BOOLEAN DEFAULT FALSE,
+  is_closed BOOLEAN DEFAULT FALSE,
+  created_at DATETIME NOT NULL,
+  updated_at DATETIME,
+  FOREIGN KEY (course_id) REFERENCES courses(course_id)
+);
 ```
 
-#### Get Student Attempts
-```http
-GET /api/assessments/student/{studentId}/attempts
+### replies Table
+```sql
+CREATE TABLE replies (
+  reply_id INT PRIMARY KEY AUTO_INCREMENT,
+  thread_id INT NOT NULL,
+  author_id INT NOT NULL,
+  body TEXT,
+  is_accepted BOOLEAN DEFAULT FALSE,
+  upvotes INT DEFAULT 0,
+  created_at DATETIME NOT NULL,
+  FOREIGN KEY (thread_id) REFERENCES discussion_threads(thread_id) ON DELETE CASCADE
+);
 ```
 
-#### Get Quiz Attempts
-```http
-GET /api/assessments/quiz/{quizId}/attempts
+### upvote_records Table
+```sql
+CREATE TABLE upvote_records (
+  upvote_id INT PRIMARY KEY AUTO_INCREMENT,
+  reply_id INT NOT NULL,
+  student_id INT NOT NULL,
+  created_at DATETIME NOT NULL,
+  FOREIGN KEY (reply_id) REFERENCES replies(reply_id) ON DELETE CASCADE,
+  UNIQUE KEY unique_upvote (reply_id, student_id)
+);
 ```
 
-#### Get Best Score
-```http
-GET /api/assessments/student/{studentId}/quiz/{quizId}/best
+## Configuration
+
+### application.properties
+```properties
+server.port=8088
+server.servlet.context-path=/
+
+spring.datasource.url=jdbc:mysql://localhost:3306/edulearn_discussion
+spring.datasource.username=root
+spring.datasource.password=root123
+
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=false
 ```
 
-#### Get Attempt Details
-```http
-GET /api/assessments/attempt/{attemptId}
+## Running the Service
+
+### Prerequisites
+- Java 17
+- Maven 3.6+
+- MySQL 8.0+
+
+### Build
+```bash
+cd discussion-service
+./mvnw clean package -DskipTests
 ```
 
-## Auto-Grading Logic
-
-### Scoring Algorithm
-```
-For each question:
-  if (studentAnswer matches correctAnswer):
-    earnedMarks += question.marks
-  
-totalScore = (earnedMarks / totalMarks) × 100
-passed = (totalScore >= quiz.passingScore)
+### Run
+```bash
+./mvnw spring-boot:run
 ```
 
-### Question Type Handling
-
-#### MCQ_SINGLE
-- Case-insensitive exact match
-- Example: "Paris" == "paris" ✓
-
-#### MCQ_MULTI
-- Split by comma, sort, and compare
-- Order-independent matching
-- Example: "Option A,Option B" == "Option B,Option A" ✓
-
-#### TRUE_FALSE
-- Boolean values as strings
-- Case-insensitive match
-- Example: "true" == "TRUE" ✓
-
-### Example: Score Calculation
-Quiz with 3 marks total:
-- Question 1 (1 mark): Student correct → 1 mark
-- Question 2 (2 marks): Student incorrect → 0 marks
-- Total: 1/3 marks = 33% score
+### Access Swagger UI
+```
+http://localhost:8088/swagger-ui.html
+```
 
 ## Testing
 
 ### Run All Tests
 ```bash
-mvn clean test
+./mvnw test
 ```
 
-### Run Specific Test Class
-```bash
-mvn test -Dtest=AssessmentServiceImplTest
-mvn test -Dtest=AssessmentControllerTest
-mvn test -Dtest=RepositoryTest
-mvn test -Dtest=AssessmentServiceIntegrationTest
+### Test Coverage
+
+| Test Class | Type | Tests | Coverage |
+|-----------|------|-------|----------|
+| DiscussionServiceImplTest | Unit/Mockito | 18 | Service methods |
+| DiscussionControllerTest | Integration | 21 | All endpoints |
+| DiscussionRepositoriesTest | Repository | 21 | Query methods |
+| **TOTAL** | | **60** | **100% critical paths** |
+
+### Test Categories
+
+#### Service Tests (18 tests)
+- Thread creation, update, delete
+- Thread pinning/unpinning
+- Thread closing/reopening
+- Reply posting with closed thread validation
+- Reply upvoting with duplicate prevention
+- Reply acceptance with single answer enforcement
+- Author query filters
+
+#### Controller Tests (21 tests)
+- All CRUD endpoints
+- Authentication/authorization validation
+- Public vs. protected endpoints
+- Error handling (404, 400)
+- Role-based access (INSTRUCTOR, STUDENT)
+
+#### Repository Tests (21 tests)
+- CRUD operations for all entities
+- Complex queries (ordering, filtering)
+- Foreign key relationships
+- Cascade delete validation
+- Unique constraint enforcement
+
+## Project Structure
+
+```
+discussion-service/
+├── src/
+│   ├── main/
+│   │   ├── java/com/edulearn/discussion/
+│   │   │   ├── controller/
+│   │   │   │   └── DiscussionController.java
+│   │   │   ├── service/
+│   │   │   │   ├── DiscussionService.java (Interface)
+│   │   │   │   └── DiscussionServiceImpl.java
+│   │   │   ├── repository/
+│   │   │   │   ├── ThreadRepository.java
+│   │   │   │   ├── ReplyRepository.java
+│   │   │   │   └── UpvoteRecordRepository.java
+│   │   │   ├── entity/
+│   │   │   │   ├── DiscussionThread.java
+│   │   │   │   ├── Reply.java
+│   │   │   │   └── UpvoteRecord.java
+│   │   │   ├── config/
+│   │   │   │   ├── SecurityConfig.java
+│   │   │   │   ├── JwtAuthFilter.java
+│   │   │   │   └── JwtUtil.java
+│   │   │   └── DiscussionServiceApplication.java
+│   │   └── resources/
+│   │       └── application.properties
+│   └── test/
+│       └── java/com/edulearn/discussion/
+│           ├── controller/
+│           │   └── DiscussionControllerTest.java (21 tests)
+│           ├── service/
+│           │   └── DiscussionServiceImplTest.java (18 tests)
+│           └── repository/
+│               └── DiscussionRepositoriesTest.java (21 tests)
+├── pom.xml
+├── README.md
+└── .gitignore
 ```
 
-### Generate Test Report
-```bash
-mvn surefire-report:report
-open target/site/surefire-report.html
-```
+## Error Handling
 
-## Test Coverage
+Common error responses:
 
-| Component | Tests | Type |
-|-----------|-------|------|
-| AssessmentService | 25 | Unit |
-| Controller | 18 | Integration |
-| Repository | 14 | DataJPA |
-| End-to-End | 7 | Integration |
-| **Total** | **64** | **Mixed** |
+- **400 Bad Request**: Invalid input or thread is closed
+- **403 Forbidden**: Insufficient permissions or non-enrolled user
+- **404 Not Found**: Thread/reply not found
+- **401 Unauthorized**: Missing or invalid JWT token
+- **409 Conflict**: Already upvoted this reply
 
-### Test Scenarios
+## Security Features
 
-✅ **Quiz Management**
-- Create, read, update, delete quizzes
-- Publish quizzes
-- List quizzes by course
+1. JWT-based authentication
+2. Role-based access control (RBAC)
+3. CORS configuration for localhost:4200
+4. Public read endpoints for thread/reply lists
+5. Protected write endpoints (authentication required)
+6. Instructor-only moderation (pin/close/delete)
+7. SQL injection prevention via parameterized queries
 
- **Question Management**
-- Add questions to quiz
-- Retrieve ordered questions
-- Update and delete questions
+## Best Practices Implemented
 
- **Attempt Management**
-- Start new attempts
-- Track max attempts
-- Auto-grade MCQ_SINGLE answers
-- Auto-grade MCQ_MULTI answers
-- Track best scores
-
-## Configuration
-
-### Application Properties
-```properties
-# Server
-server.port=8083
-
-# Database
-spring.datasource.url=jdbc:mysql://localhost:3306/assessment_service_db
-spring.datasource.username=root
-spring.datasource.password=root
-
-# JPA
-spring.jpa.hibernate.ddl-auto=update
-spring.jpa.show-sql=false
-
-# Redis
-spring.redis.host=localhost
-spring.redis.port=6379
-spring.redis.timeout=60000ms
-```
-
-### Environment Variables
-```bash
-export MYSQL_URL=jdbc:mysql://localhost:3306/assessment_service_db
-export MYSQL_USER=root
-export MYSQL_PASSWORD=root
-export REDIS_HOST=localhost
-export REDIS_PORT=6379
-```
-
-## Dependencies
-
-```xml
-<!-- Spring Boot -->
-<dependency>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-web</artifactId>
-</dependency>
-
-<!-- Database -->
-<dependency>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-data-jpa</artifactId>
-</dependency>
-<dependency>
-    <groupId>com.mysql</groupId>
-    <artifactId>mysql-connector-j</artifactId>
-</dependency>
-
-<!-- Cache -->
-<dependency>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-data-redis</artifactId>
-</dependency>
-
-<!-- Testing -->
-<dependency>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-test</artifactId>
-    <scope>test</scope>
-</dependency>
-<dependency>
-    <groupId>com.h2database</groupId>
-    <artifactId>h2</artifactId>
-    <scope>test</scope>
-</dependency>
-```
+1. **Service Pattern**: Interface + Implementation separation
+2. **Repository Pattern**: Data access abstraction
+3. **Transactional Integrity**: @Transactional for multi-step operations
+4. **Cascade Delete**: Clean removal of related entities
+5. **Duplicate Prevention**: UpvoteRecord unique constraint
+6. **JPA Lifecycle**: @PrePersist/@PreUpdate for timestamps
+7. **DTOs Ready**: Entity structure supports DTO conversion
 
 ## Troubleshooting
 
-### MySQL Connection Error
-```
-Error: No connection to jdbc:mysql://localhost:3306/assessment_service_db
-```
-**Solution**: 
-1. Ensure MySQL is running
-2. Check credentials in application.properties
-3. Verify database exists: `CREATE DATABASE assessment_service_db;`
-
-### Redis Connection Error
-```
-Error: Unable to connect to Redis at localhost:6379
-```
-**Solution**:
-- Tests mock Redis, no setup needed
-- For production, start Redis: `redis-server`
-
-### Port Already in Use
-```
-Error: Address already in use: 8083
-```
-**Solution**:
-1. Change port in application.properties: `server.port=8084`
-2. Or kill process: `lsof -i :8083` (Linux/Mac)
-
-### Test Compilation Error
-```
-[ERROR] Quiz.java uses unchecked or unsafe operations
-```
-**Solution**: Ensure Java 17+ is configured in pom.xml
-
-## Database Schema
-
-### QUIZZES Table
-```sql
-CREATE TABLE quizzes (
-  quiz_id INT AUTO_INCREMENT PRIMARY KEY,
-  course_id INT NOT NULL,
-  lesson_id INT,
-  title VARCHAR(255) NOT NULL,
-  description TEXT,
-  time_limit_minutes INT NOT NULL,
-  passing_score INT NOT NULL,
-  max_attempts INT NOT NULL,
-  is_published BOOLEAN DEFAULT FALSE,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME
-);
+### Port 8088 Already in Use
+```bash
+# Find and kill process on port 8088
+netstat -ano | findstr :8088
+taskkill /PID {PID} /F
 ```
 
-### QUESTIONS Table
-```sql
-CREATE TABLE questions (
-  question_id INT AUTO_INCREMENT PRIMARY KEY,
-  quiz_id INT NOT NULL,
-  question_text TEXT NOT NULL,
-  question_type VARCHAR(50) NOT NULL,
-  options TEXT,
-  correct_answer TEXT NOT NULL,
-  marks INT NOT NULL,
-  order_index INT NOT NULL,
-  FOREIGN KEY (quiz_id) REFERENCES quizzes(quiz_id) ON DELETE CASCADE
-);
-```
+### Database Connection Failed
+- Ensure MySQL is running: `services.msc` (Windows)
+- Check credentials in application.properties
+- Verify database exists: `CREATE DATABASE edulearn_discussion;`
 
-### ATTEMPTS Table
-```sql
-CREATE TABLE attempts (
-  attempt_id INT AUTO_INCREMENT PRIMARY KEY,
-  quiz_id INT NOT NULL,
-  student_id INT NOT NULL,
-  score INT NOT NULL,
-  passed BOOLEAN DEFAULT FALSE,
-  started_at DATETIME NOT NULL,
-  submitted_at DATETIME,
-  time_taken INT,
-  answers LONGTEXT,
-  FOREIGN KEY (quiz_id) REFERENCES quizzes(quiz_id) ON DELETE CASCADE
-);
-```
+### JWT Token Invalid
+- Verify secret key matches auth-service
+- Check token format: `Bearer {token}`
+- Ensure token not expired (24-hour expiry)
 
-## Performance Considerations
+## Future Enhancements
 
-- **Indexing**: Added on `quiz_id`, `student_id`, `course_id`
-- **Query Optimization**: OrderBy used in repository queries
-- **Caching**: Redis for attempt timers
-- **Batch Operations**: Cascade delete for efficiency
+1. Mention system (@username notifications)
+2. Nested replies (reply to reply)
+3. Thread subscriptions and notifications
+4. Spam detection and moderation
+5. Search and full-text indexing
+6. Trending topics by engagement
+7. Email notifications for mentions
+8. Markdown support in posts
+9. Rate limiting to prevent spam
+10. Analytics on forum engagement
 
-## Security Notes
+## Integration Points
 
-- Implement authentication/authorization in gateway
-- Add rate limiting for attempt endpoints
-- Validate quiz ownership before modifications
-- Encrypt sensitive data in transit
+- **Auth Service**: JWT validation and user identification
+- **Course Service**: courseId reference (data only)
+- **Lesson Service**: lessonId reference (optional)
 
-## Contributing
+## Performance Optimization
 
-1. Create feature branch
-2. Write tests first
-3. Implement feature
-4. Ensure all tests pass
-5. Submit pull request
+1. Database indexes on:
+   - courseId (for course threads)
+   - lessonId (for lesson threads)
+   - threadId (for replies)
+   - authorId (for user posts)
+   - studentId + replyId (for upvote uniqueness)
+
+2. Query optimization:
+   - Sorted queries in repositories
+   - Lazy loading for related entities
+   - Connection pooling with HikariCP
+
+3. Caching candidates:
+   - Popular threads cache
+   - Most upvoted replies cache
+   - Thread count per course
