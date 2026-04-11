@@ -9,6 +9,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,7 @@ import com.edulearn.assessment.entity.Quiz;
 import com.edulearn.assessment.repository.AttemptRepository;
 import com.edulearn.assessment.repository.QuestionRepository;
 import com.edulearn.assessment.repository.QuizRepository;
+import com.edulearn.notification.event.QuizResultEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
@@ -35,6 +37,9 @@ public class AssessmentServiceImpl implements AssessmentService {
 
     @Autowired
     private StringRedisTemplate redisTemplate;
+
+    @Autowired
+    private ApplicationEventPublisher eventPublisher;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -256,7 +261,15 @@ public class AssessmentServiceImpl implements AssessmentService {
         redisTemplate.delete(redisKey);
 
         // Step 14: Save and return
-        return attemptRepository.save(attempt);
+        Attempt savedAttempt = attemptRepository.save(attempt);
+        
+        // Publish quiz result event - NotificationServiceImpl will listen and create notification
+        eventPublisher.publishEvent(
+                new QuizResultEvent(this, attempt.getStudentId(), quiz.getTitle(), 
+                                   scorePercentage, attempt.getPassed())
+        );
+        
+        return savedAttempt;
     }
 
     @Override

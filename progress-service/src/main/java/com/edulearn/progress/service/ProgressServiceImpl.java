@@ -7,6 +7,7 @@ import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +23,7 @@ import com.edulearn.progress.entity.Progress;
 import com.edulearn.progress.entity.Certificate;
 import com.edulearn.progress.repository.ProgressRepository;
 import com.edulearn.progress.repository.CertificateRepository;
+import com.edulearn.notification.event.CertificateEvent;
 
 /**
  * Implementation of ProgressService
@@ -35,6 +37,9 @@ public class ProgressServiceImpl implements ProgressService {
 
     @Autowired
     private CertificateRepository certificateRepository;
+
+    @Autowired
+    private ApplicationEventPublisher eventPublisher;
 
     @Value("${certificate.output.path}")
     private String certificateOutputPath;
@@ -128,7 +133,14 @@ public class ProgressServiceImpl implements ProgressService {
                 .courseName("Course " + courseId)
                 .build();
 
-        return certificateRepository.save(certificate);
+        Certificate savedCertificate = certificateRepository.save(certificate);
+
+        // Publish certificate event - NotificationServiceImpl will listen and create notification
+        eventPublisher.publishEvent(
+                new CertificateEvent(this, studentId, "Course " + courseId, verificationCode)
+        );
+
+        return savedCertificate;
     }
 
     private String generateVerificationCode(Integer courseId) {

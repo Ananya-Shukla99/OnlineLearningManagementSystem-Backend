@@ -2,7 +2,9 @@ package com.edulearn.enrollment.service;
 
 import com.edulearn.enrollment.entity.Enrollment;
 import com.edulearn.enrollment.repository.EnrollmentRepository;
+import com.edulearn.notification.event.EnrollmentEvent;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,6 +16,9 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 
     @Autowired
     private EnrollmentRepository enrollmentRepository;
+    
+    @Autowired
+    private ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -31,7 +36,14 @@ public class EnrollmentServiceImpl implements EnrollmentService {
                 .certificateIssued(false)
                 .build();
 
-        return enrollmentRepository.save(enrollment);
+        Enrollment saved = enrollmentRepository.save(enrollment);
+        
+        // Publish enrollment event - NotificationServiceImpl will listen and create notification
+        eventPublisher.publishEvent(
+                new EnrollmentEvent(this, Math.toIntExact(studentId), courseId, "Course " + courseId)
+        );
+        
+        return saved;
     }
 
     @Override

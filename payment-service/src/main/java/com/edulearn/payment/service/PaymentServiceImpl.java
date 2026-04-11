@@ -4,10 +4,12 @@ import com.edulearn.payment.entity.Payment;
 import com.edulearn.payment.entity.Subscription;
 import com.edulearn.payment.repository.PaymentRepository;
 import com.edulearn.payment.repository.SubscriptionRepository;
+import com.edulearn.notification.event.PaymentEvent;
 import com.razorpay.RazorpayClient;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -37,6 +39,9 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Autowired
     private RestTemplate restTemplate;
+
+    @Autowired
+    private ApplicationEventPublisher eventPublisher;
 
     @Value("${razorpay.key.id}")
     private String razorpayKeyId;
@@ -144,6 +149,11 @@ public class PaymentServiceImpl implements PaymentService {
                 // Log error but don't fail the payment - payment is already successful
                 System.err.println("Warning: Could not enroll student via HTTP: " + e.getMessage());
             }
+
+            // Publish payment event - NotificationServiceImpl will listen and create notification
+            eventPublisher.publishEvent(
+                    new PaymentEvent(this, studentId, payment.getAmount(), "Course " + courseId)
+            );
 
             return savedPayment;
         } catch (Exception e) {
