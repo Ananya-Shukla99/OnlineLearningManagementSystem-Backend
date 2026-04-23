@@ -271,12 +271,3 @@ gradle test
 * CI/CD pipeline integration
 
 ---
-
-## Contribution Guidelines
-
-1. Create a feature branch
-2. Commit changes with clear messages
-3. Push and create a pull request
-4. Ensure all tests pass
-
----
