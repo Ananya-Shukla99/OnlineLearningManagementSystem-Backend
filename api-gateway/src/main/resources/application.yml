@@ -1,0 +1,116 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        # AUTH SERVICE
+        - id: auth-service
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: authCircuitBreaker
+                fallbackUri: forward:/fallback
+
+        # COURSE SERVICE
+        - id: course-service
+          uri: lb://course-service
+          predicates:
+            - Path=/api/v1/courses/**
+
+        # ENROLLMENT SERVICE
+        - id: enrollment-service
+          uri: lb://enrollment-service
+          predicates:
+            - Path=/api/v1/enrollments/**
+
+        # LESSON SERVICE
+        - id: lesson-service
+          uri: lb://${LESSON_SERVICE_ID:lesson-service}
+          predicates:
+            - Path=/api/v1/lessons/**
+
+        # NEW LESSON SERVICE (alias path)
+        - id: new-lesson-service
+          uri: lb://new-lesson-service
+          predicates:
+            - Path=/api/v1/new-lessons/**
+          filters:
+            - RewritePath=/api/v1/new-lessons(?<segment>/?.*), /api/v1/lessons/${segment}
+
+        # PROGRESS SERVICE
+        - id: progress-service
+          uri: lb://progress-service
+          predicates:
+            - Path=/api/v1/progress/**
+
+        # ASSESSMENT SERVICE
+        - id: assessment-service
+          uri: lb://assessment-service
+          predicates:
+            - Path=/api/v1/assessments/**
+          filters:
+            - RewritePath=/api/v1/assessments/(?<segment>.*), /api/assessments/${segment}
+
+        # PAYMENT SERVICE
+        - id: payment-service
+          uri: lb://payment-service
+          predicates:
+            - Path=/api/v1/payments/**
+
+        # NOTIFICATION SERVICE
+        - id: notification-service
+          uri: lb://notification-service
+          predicates:
+            - Path=/api/v1/notifications/**
+          filters:
+            - RewritePath=/api/v1/notifications/(?<segment>.*), /api/notifications/${segment}
+
+        # DISCUSSION SERVICE
+        - id: discussion-service
+          uri: lb://discussion-service
+          predicates:
+            - Path=/api/v1/discussion/**
+          filters:
+            - RewritePath=/api/v1/discussion/(?<segment>.*), /api/discussion/${segment}
+
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins:
+              - "http://localhost:4200"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+              - PATCH
+            allowedHeaders:
+              - "*"
+            allowCredentials: true
+            maxAge: 3600
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    prefer-ip-address: true
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    reactor.netty: DEBUG
