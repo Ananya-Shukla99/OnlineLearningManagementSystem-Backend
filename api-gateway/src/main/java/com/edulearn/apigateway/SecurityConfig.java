@@ -33,7 +33,7 @@ public class SecurityConfig {
                 .pathMatchers("/auth/login").permitAll()
                 .pathMatchers("/auth/validate").permitAll()
                 .pathMatchers("/auth/refresh").permitAll()
-                .pathMatchers("/api/v1/auth/google-login").permitAll()
+                .pathMatchers("/auth/login/google").permitAll()
                 .pathMatchers("/login/oauth2/**").permitAll()
                 .pathMatchers(HttpMethod.GET, "/api/v1/courses/**").permitAll()
                 .pathMatchers(HttpMethod.GET, "/api/v1/lessons/**").permitAll()

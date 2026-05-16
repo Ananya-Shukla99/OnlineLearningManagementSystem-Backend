@@ -14,6 +14,19 @@ param(
     [switch]$onlyAuth = $false
 )
 
+# Load environment variables from .env file
+$envFilePath = Join-Path (Join-Path $PSScriptRoot "..") ".env"
+if (Test-Path $envFilePath) {
+    Write-Host "Loading environment variables from $envFilePath" -ForegroundColor Cyan
+    Get-Content $envFilePath | Where-Object { $_ -match "=" } | ForEach-Object {
+        $name, $value = $_.Split('=', 2)
+        [System.Environment]::SetEnvironmentVariable($name.Trim(), $value.Trim(), "Process")
+        Write-Host "  Set $name" -ForegroundColor Gray
+    }
+} else {
+    Write-Host "No .env file found at $envFilePath" -ForegroundColor Yellow
+}
+
 # Check if RabbitMQ is running
 Write-Host "Checking RabbitMQ Service..." -ForegroundColor Cyan
 $rabbitService = Get-Service -Name "RabbitMQ" -ErrorAction SilentlyContinue

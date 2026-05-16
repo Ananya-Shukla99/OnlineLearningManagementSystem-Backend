@@ -65,8 +65,8 @@ public class SecurityConfig {
                     "/auth/refresh", "/auth/send-otp",
                     "/auth/user/**", "/auth/users/role/**"
                 ).permitAll()
-                // OAuth2 endpoints
-                .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
+                // OAuth2 & Login processing paths
+                .requestMatchers("/oauth2/**", "/login/**").permitAll()
                 // Admin-only
                 .requestMatchers("/auth/users").hasRole("ADMIN")
                 // Authenticated

@@ -7,7 +7,6 @@ $services = @(
     "enrollment-service",
     "lesson-service",
     "notification-service",
-    "payment-service",
     "progress-service"
 )
 

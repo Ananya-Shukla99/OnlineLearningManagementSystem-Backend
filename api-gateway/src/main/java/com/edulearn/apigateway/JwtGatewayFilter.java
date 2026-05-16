@@ -146,7 +146,7 @@ public class JwtGatewayFilter implements WebFilter, Ordered {
                 || path.startsWith("/auth/refresh")
                 || path.startsWith("/auth/validate")
                 || path.startsWith("/auth/send-otp")
-                || path.startsWith("/api/v1/auth/google-login")
+                || path.startsWith("/auth/login/google")
                 || path.startsWith("/oauth2/")
                 || path.startsWith("/login/oauth2/")) {
             return true;
