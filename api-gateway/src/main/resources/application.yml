@@ -94,7 +94,9 @@ spring:
           '[/**]':
             allowedOrigins:
               - "http://localhost:4200"
-              - "${ALLOWED_ORIGIN:https://your-vercel-app.vercel.app}"
+              - "https://online-learning-manag-git-5f2ceb-ananyashukla990-4486s-projects.vercel.app"
+              - "https://online-learning-management-system-frontend-nirrerw85.vercel.app"
+              - "https://online-learning-management-system-f-tau.vercel.app"
             allowedMethods:
               - GET
               - POST
