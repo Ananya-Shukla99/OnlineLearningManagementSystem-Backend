@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.web.client.RestTemplate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -23,6 +24,9 @@ public class NotificationServiceImplTest {
 
     @Mock
     private NotificationRepository notificationRepository;
+
+    @Mock
+    private RestTemplate restTemplate;
 
     @InjectMocks
     private NotificationServiceImpl notificationService;
@@ -232,6 +236,70 @@ public class NotificationServiceImplTest {
         notificationService.handleCertificateEvent(event);
 
         verify(notificationRepository, times(1)).save(any(Notification.class));
+    }
+
+    @Test
+    public void testHandleNotification_User() {
+        com.edulearn.notification.dto.NotificationDto dto = new com.edulearn.notification.dto.NotificationDto();
+        dto.setUserId(101L);
+        dto.setType("TEST");
+        dto.setTitle("Hello");
+        dto.setMessage("World");
+
+        notificationService.handleNotification(dto);
+
+        verify(notificationRepository, times(1)).save(any(Notification.class));
+    }
+
+    @Test
+    public void testHandleNotification_AdminBroadcast() {
+        com.edulearn.notification.dto.NotificationDto dto = new com.edulearn.notification.dto.NotificationDto();
+        dto.setUserId(1L);
+        dto.setType("COURSE_CREATED_ADMIN");
+        dto.setTitle("New Course");
+        dto.setMessage("A new course was created");
+
+        java.util.Map<String, Object> admin1 = java.util.Map.of("userId", 1001L);
+        java.util.Map<String, Object> admin2 = java.util.Map.of("userId", 1002L);
+        java.util.Map<String, Object> response = java.util.Map.of("data", java.util.List.of(admin1, admin2));
+
+        when(restTemplate.getForObject(anyString(), eq(java.util.Map.class))).thenReturn(response);
+
+        notificationService.handleNotification(dto);
+
+        verify(notificationRepository, times(2)).save(any(Notification.class));
+    }
+
+    @Test
+    public void testHandleNotification_AdminBroadcast_Empty() {
+        com.edulearn.notification.dto.NotificationDto dto = new com.edulearn.notification.dto.NotificationDto();
+        dto.setUserId(1L);
+        dto.setType("COURSE_CREATED_ADMIN");
+
+        java.util.Map<String, Object> response = java.util.Map.of("data", java.util.List.of());
+        when(restTemplate.getForObject(anyString(), eq(java.util.Map.class))).thenReturn(response);
+
+        notificationService.handleNotification(dto);
+
+        verify(notificationRepository, never()).save(any(Notification.class));
+    }
+
+    @Test
+    public void testHandleNotification_AdminBroadcast_Error() {
+        com.edulearn.notification.dto.NotificationDto dto = new com.edulearn.notification.dto.NotificationDto();
+        dto.setUserId(1L);
+        dto.setType("COURSE_CREATED_ADMIN");
+
+        when(restTemplate.getForObject(anyString(), eq(java.util.Map.class))).thenThrow(new RuntimeException("Auth Service Down"));
+
+        assertDoesNotThrow(() -> notificationService.handleNotification(dto));
+        verify(notificationRepository, never()).save(any(Notification.class));
+    }
+
+    @Test
+    public void testMarkAsRead_NotFound() {
+        when(notificationRepository.findById(999L)).thenReturn(Optional.empty());
+        assertThrows(RuntimeException.class, () -> notificationService.markAsRead(999L));
     }
 }
 

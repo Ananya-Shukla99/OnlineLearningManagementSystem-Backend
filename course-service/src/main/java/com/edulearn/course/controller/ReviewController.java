@@ -16,8 +16,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @RestController
-@RequestMapping("/courses")
-
+@RequestMapping("/api/v1/courses")
 public class ReviewController {
 
     @Autowired
@@ -31,7 +30,7 @@ public class ReviewController {
      */
     @PostMapping("/{courseId}/reviews")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Map<String, Object>> submitReview(@PathVariable Integer courseId,
+    public ResponseEntity<Map<String, Object>> submitReview(@PathVariable Long courseId,
                                                             @RequestBody Review review) {
         Map<String, Object> response = new HashMap<>();
         try {
@@ -58,7 +57,7 @@ public class ReviewController {
             Double avgRating = reviewRepository.findAverageRatingByCourseId(courseId);
             Long count = reviewRepository.countByCourseId(courseId);
 
-            Optional<Course> courseOpt = courseRepository.findById(courseId);
+            Optional<Course> courseOpt = courseRepository.findById(courseId.intValue());
             if (courseOpt.isPresent()) {
                 Course course = courseOpt.get();
                 course.setAverageRating(avgRating != null ? Math.round(avgRating * 10.0) / 10.0 : 0.0);
@@ -82,7 +81,7 @@ public class ReviewController {
      * GET /courses/{courseId}/reviews — list all reviews for a course (public)
      */
     @GetMapping("/{courseId}/reviews")
-    public ResponseEntity<Map<String, Object>> getCourseReviews(@PathVariable Integer courseId) {
+    public ResponseEntity<Map<String, Object>> getCourseReviews(@PathVariable Long courseId) {
         Map<String, Object> response = new HashMap<>();
         try {
             List<Review> reviews = reviewRepository.findByCourseId(courseId);
@@ -100,7 +99,7 @@ public class ReviewController {
      * GET /courses/{courseId}/rating — get average rating (public)
      */
     @GetMapping("/{courseId}/rating")
-    public ResponseEntity<Map<String, Object>> getCourseRating(@PathVariable Integer courseId) {
+    public ResponseEntity<Map<String, Object>> getCourseRating(@PathVariable Long courseId) {
         Map<String, Object> response = new HashMap<>();
         try {
             Double avgRating = reviewRepository.findAverageRatingByCourseId(courseId);

@@ -15,13 +15,13 @@ public class Review {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Integer reviewId;
+    private Long reviewId;
 
     @Column(nullable = false)
-    private Integer courseId;
+    private Long courseId;
 
     @Column(nullable = false)
-    private Integer studentId;
+    private Long studentId;
 
     @Column(nullable = false)
     private Integer rating; // 1-5

@@ -1,6 +1,5 @@
 package com.edulearn.auth.config;
 
-import com.edulearn.auth.util.JwtTokenProvider;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -8,7 +7,6 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -39,8 +37,8 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 Claims claims = Jwts.parser()
                         .verifyWith(key)
                         .build()
-                        .parseClaimsJws(token)
-                        .getBody();
+                        .parseSignedClaims(token)
+                        .getPayload();
 
                 String userId = claims.getSubject();
                 String role = (String) claims.get("role");

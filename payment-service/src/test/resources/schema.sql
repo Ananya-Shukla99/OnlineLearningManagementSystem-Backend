@@ -8,6 +8,9 @@ CREATE TABLE IF NOT EXISTS payments (
     mode VARCHAR(50) NOT NULL,
     currency VARCHAR(10),
     transaction_id VARCHAR(100),
+    razorpay_order_id VARCHAR(100),
+    razorpay_payment_id VARCHAR(100),
+    razorpay_signature VARCHAR(255),
     paid_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

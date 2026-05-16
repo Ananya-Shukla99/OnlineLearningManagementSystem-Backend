@@ -4,7 +4,12 @@ import com.edulearn.course.entity.Course;
 import com.edulearn.course.repository.CourseRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.web.client.RestTemplate;
+import com.edulearn.notification.dto.NotificationDto;
+import com.edulearn.notification.config.RabbitMQConfig;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -12,6 +17,34 @@ public class CourseServiceImpl implements CourseService {
 
     @Autowired
     private CourseRepository courseRepository;
+
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    /**
+     * Resolves an instructor's full name from the auth-service.
+     * Falls back to "Instructor #ID" if the auth-service is unreachable.
+     */
+    private String resolveInstructorName(Integer instructorId) {
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> response = restTemplate.getForObject(
+                    "http://localhost:8081/auth/user/" + instructorId, Map.class);
+            if (response != null && response.get("data") instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> user = (Map<String, Object>) response.get("data");
+                String name = (String) user.get("fullName");
+                if (name != null && !name.isBlank()) return name;
+            }
+        } catch (Exception e) {
+            System.err.println("[CourseService] Could not resolve instructor name for ID "
+                    + instructorId + ": " + e.getMessage());
+        }
+        return "Instructor #" + instructorId;
+    }
 
     @Override
     public Course createCourse(Course course) {
@@ -41,7 +74,25 @@ public class CourseServiceImpl implements CourseService {
             course.setLanguage("English");
         }
         
-        return courseRepository.save(course);
+        Course savedCourse = courseRepository.save(course);
+        
+        // Notify admin via RabbitMQ — include instructor name in the message
+        try {
+            String instructorName = resolveInstructorName(savedCourse.getInstructorId());
+            NotificationDto adminNotif = new NotificationDto();
+            adminNotif.setUserId(1L); // Signals the notification service to broadcast to all admins
+            adminNotif.setType("COURSE_CREATED_ADMIN");
+            adminNotif.setTitle("New Course Added");
+            adminNotif.setMessage(instructorName + " added a new course: '" + savedCourse.getTitle() + "'.");
+            adminNotif.setRelatedEntityId(Long.valueOf(savedCourse.getCourseId()));
+            adminNotif.setRelatedEntityType("COURSE");
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE, RabbitMQConfig.ROUTING_KEY, adminNotif);
+            System.out.println("[CourseService] Admin notification queued for course '" + savedCourse.getTitle() + "' by " + instructorName);
+        } catch (Exception e) {
+            System.err.println("[CourseService] Failed to send course-creation admin notification: " + e.getMessage());
+        }
+        
+        return savedCourse;
     }
 
     @Override
@@ -123,6 +174,22 @@ public class CourseServiceImpl implements CourseService {
         courseToPublish.setApprovalStatus("PENDING_APPROVAL");
         courseToPublish.setRejectionReason(null);
         courseRepository.save(courseToPublish);
+
+        // Notify admin via RabbitMQ — include instructor name in the message
+        try {
+            String instructorName = resolveInstructorName(courseToPublish.getInstructorId());
+            NotificationDto adminNotif = new NotificationDto();
+            adminNotif.setUserId(1L); // Signals the notification service to broadcast to all admins
+            adminNotif.setType("COURSE_PENDING");
+            adminNotif.setTitle("Course Pending Approval");
+            adminNotif.setMessage(instructorName + " submitted '" + courseToPublish.getTitle() + "' for approval. Please review.");
+            adminNotif.setRelatedEntityId(Long.valueOf(courseToPublish.getCourseId()));
+            adminNotif.setRelatedEntityType("COURSE");
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE, RabbitMQConfig.ROUTING_KEY, adminNotif);
+            System.out.println("[CourseService] Pending-approval notification queued for '" + courseToPublish.getTitle() + "' by " + instructorName);
+        } catch (Exception e) {
+            System.err.println("[CourseService] Failed to send pending-approval admin notification: " + e.getMessage());
+        }
     }
 
     @Override

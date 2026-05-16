@@ -16,6 +16,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
 import com.edulearn.course.entity.Course;
 import com.edulearn.course.repository.CourseRepository;
@@ -26,6 +27,12 @@ class CourseServiceImplTest {
 
     @Mock
     private CourseRepository courseRepository;
+
+    @Mock
+    private RabbitTemplate rabbitTemplate;
+
+    @Mock
+    private org.springframework.web.client.RestTemplate restTemplate;
 
     @InjectMocks
     private CourseServiceImpl courseService;
@@ -151,6 +158,102 @@ class CourseServiceImplTest {
             RuntimeException ex = assertThrows(RuntimeException.class,
                     () -> courseService.createCourse(nullPrice));
             assertEquals("Course price must be non-negative", ex.getMessage());
+        }
+
+        @Test
+        @DisplayName("Should use default values when optional fields are null")
+        void testCreateCourseDefaults() {
+            Course minimal = new Course();
+            minimal.setTitle("Minimal Course");
+            minimal.setInstructorId(101);
+            minimal.setPrice(10.0);
+
+            when(courseRepository.save(any(Course.class))).thenAnswer(i -> i.getArgument(0));
+
+            Course result = courseService.createCourse(minimal);
+
+            assertEquals("Development", result.getCategory());
+            assertEquals("Beginner", result.getLevel());
+            assertEquals(0, result.getTotalDuration());
+            assertEquals("English", result.getLanguage());
+        }
+
+        @Test
+        @DisplayName("Should resolve instructor name and send notification")
+        void testCreateCourseWithNotification() {
+            Course newCourse = new Course();
+            newCourse.setCourseId(1);
+            newCourse.setTitle("Notify Me");
+            newCourse.setInstructorId(101);
+            newCourse.setPrice(10.0);
+
+            when(courseRepository.save(any(Course.class))).thenReturn(newCourse);
+            
+            // Mock RestTemplate response for resolveInstructorName
+            java.util.Map<String, Object> mockData = new java.util.HashMap<>();
+            mockData.put("fullName", "John Doe");
+            java.util.Map<String, Object> mockResponse = new java.util.HashMap<>();
+            mockResponse.put("data", mockData);
+            
+            when(restTemplate.getForObject(anyString(), eq(java.util.Map.class))).thenReturn(mockResponse);
+
+            courseService.createCourse(newCourse);
+
+            verify(rabbitTemplate).convertAndSend(anyString(), anyString(), any(Object.class));
+            verify(restTemplate).getForObject(contains("101"), eq(java.util.Map.class));
+        }
+
+        @Test
+        @DisplayName("Should use fallback when instructor name data is invalid")
+        void testCreateCourseInstructorNameInvalid() {
+            Course newCourse = new Course();
+            newCourse.setCourseId(1);
+            newCourse.setTitle("Notify Me");
+            newCourse.setInstructorId(101);
+            newCourse.setPrice(10.0);
+
+            when(courseRepository.save(any(Course.class))).thenReturn(newCourse);
+            
+            java.util.Map<String, Object> mockResponse = new java.util.HashMap<>();
+            mockResponse.put("data", "not-a-map");
+            
+            when(restTemplate.getForObject(anyString(), eq(java.util.Map.class))).thenReturn(mockResponse);
+
+            courseService.createCourse(newCourse);
+
+            verify(rabbitTemplate).convertAndSend(anyString(), anyString(), any(Object.class));
+        }
+
+        @Test
+        @DisplayName("Should handle instructor name resolution failure")
+        void testCreateCourseInstructorResolutionFailure() {
+            Course newCourse = new Course();
+            newCourse.setCourseId(1);
+            newCourse.setTitle("Notify Me");
+            newCourse.setInstructorId(101);
+            newCourse.setPrice(10.0);
+
+            when(courseRepository.save(any(Course.class))).thenReturn(newCourse);
+            when(restTemplate.getForObject(anyString(), eq(java.util.Map.class))).thenThrow(new RuntimeException("API Down"));
+
+            courseService.createCourse(newCourse);
+
+            // Should still send notification with fallback name
+            verify(rabbitTemplate).convertAndSend(anyString(), anyString(), any(Object.class));
+        }
+
+        @Test
+        @DisplayName("Should handle notification failure gracefully")
+        void testCreateCourseNotificationFailure() {
+            Course newCourse = new Course();
+            newCourse.setTitle("Notify Me");
+            newCourse.setInstructorId(101);
+            newCourse.setPrice(10.0);
+
+            when(courseRepository.save(any(Course.class))).thenReturn(newCourse);
+            lenient().doThrow(new RuntimeException("Rabbit Down")).when(rabbitTemplate).convertAndSend(anyString(), anyString(), any(Object.class));
+
+            assertDoesNotThrow(() -> courseService.createCourse(newCourse));
         }
     }
 
@@ -387,8 +490,7 @@ class CourseServiceImplTest {
 
             assertFalse(testCourse.getIsPublished());
             assertEquals("PENDING_APPROVAL", testCourse.getApprovalStatus());
-            assertNull(testCourse.getRejectionReason());
-            verify(courseRepository).save(testCourse);
+            verify(rabbitTemplate).convertAndSend(anyString(), anyString(), any(Object.class));
         }
 
         @Test

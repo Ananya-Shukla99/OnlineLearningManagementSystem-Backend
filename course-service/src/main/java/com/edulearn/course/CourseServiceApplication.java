@@ -6,7 +6,7 @@ import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
 import io.swagger.v3.oas.annotations.OpenAPIDefinition;
 import io.swagger.v3.oas.annotations.info.Info;
 
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = {"com.edulearn.course", "com.edulearn.notification"})
 @EnableDiscoveryClient
 @OpenAPIDefinition(
 		info = @Info(

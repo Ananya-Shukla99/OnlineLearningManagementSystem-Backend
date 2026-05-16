@@ -4,27 +4,36 @@ import com.edulearn.auth.entity.User;
 import com.edulearn.auth.entity.UserRole;
 import com.edulearn.auth.repository.UserRepository;
 import com.edulearn.auth.util.JwtTokenProvider;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+
 import java.util.Optional;
 
 @Service
 public class AuthServiceImpl implements AuthService {
 
-    @Autowired
-    private UserRepository userRepository;
+    private static final Logger logger = LoggerFactory.getLogger(AuthServiceImpl.class);
+    private static final String USER_NOT_FOUND = "User not found";
 
-    @Autowired
-    private JwtTokenProvider jwtTokenProvider;
+    private final UserRepository userRepository;
+    private final JwtTokenProvider jwtTokenProvider;
+    private final PasswordEncoder passwordEncoder;
 
-    private BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    public AuthServiceImpl(UserRepository userRepository, JwtTokenProvider jwtTokenProvider, PasswordEncoder passwordEncoder) {
+        this.userRepository = userRepository;
+        this.jwtTokenProvider = jwtTokenProvider;
+        this.passwordEncoder = passwordEncoder;
+    }
 
     @Override
     public User register(String email, String fullName, String password, String role) {
         // Check if user already exists
         if (userRepository.existsByEmail(email)) {
-            throw new RuntimeException("User already exists with email: " + email);
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User already exists with email: " + email);
         }
 
         // Create new user
@@ -43,12 +52,12 @@ public class AuthServiceImpl implements AuthService {
         Optional<User> user = userRepository.findByEmail(email);
 
         if (user.isEmpty()) {
-            throw new RuntimeException("User not found with email: " + email);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found with email: " + email);
         }
 
         // Verify password
         if (!passwordEncoder.matches(password, user.get().getPasswordHash())) {
-            throw new RuntimeException("Invalid password");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid password");
         }
 
         // Generate JWT token
@@ -58,7 +67,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public void logout(String token) {
         // In a real app, you might add the token to a blacklist
-        System.out.println("User logged out. Token invalidated: " + token);
+        logger.info("User logged out. Token invalidated: {}", token);
     }
 
     @Override
@@ -73,7 +82,7 @@ public class AuthServiceImpl implements AuthService {
 
         Optional<User> user = userRepository.findByUserId(Long.parseLong(userId));
         if (user.isEmpty()) {
-            throw new RuntimeException("User not found");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, USER_NOT_FOUND);
         }
 
         // Generate new token
@@ -95,12 +104,12 @@ public class AuthServiceImpl implements AuthService {
         Optional<User> user = userRepository.findByUserId(userId);
 
         if (user.isEmpty()) {
-            throw new RuntimeException("User not found");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, USER_NOT_FOUND);
         }
 
         // Verify old password
         if (!passwordEncoder.matches(oldPassword, user.get().getPasswordHash())) {
-            throw new RuntimeException("Old password is incorrect");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Old password is incorrect");
         }
 
         // Update password
@@ -109,17 +118,19 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public User updateProfile(Long userId, String fullName, String bio, String mobile) {
+    public User updateProfile(Long userId, String fullName, String bio, String mobile, String headline, String expertise) {
         Optional<User> user = userRepository.findByUserId(userId);
 
         if (user.isEmpty()) {
-            throw new RuntimeException("User not found");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, USER_NOT_FOUND);
         }
 
         User updatedUser = user.get();
         updatedUser.setFullName(fullName);
         updatedUser.setBio(bio);
         updatedUser.setMobile(mobile);
+        updatedUser.setHeadline(headline);
+        updatedUser.setExpertise(expertise);
 
         return userRepository.save(updatedUser);
     }
@@ -127,7 +138,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public void deleteUser(Long userId) {
         if (!userRepository.existsById(userId)) {
-            throw new RuntimeException("User not found");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, USER_NOT_FOUND);
         }
         userRepository.deleteById(userId);
     }

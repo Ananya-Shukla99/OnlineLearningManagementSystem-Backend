@@ -97,6 +97,22 @@ class DiscussionServiceImplTest {
             assertEquals("New Body", result.getBody());
         }
 
+
+        @Test
+        @DisplayName("updateThread - partial update title only")
+        void testUpdateThreadPartialTitle() {
+            DiscussionThread update = new DiscussionThread();
+            update.setTitle("Only Title");
+
+            when(threadRepository.findById(1)).thenReturn(Optional.of(testThread));
+            when(threadRepository.save(any(DiscussionThread.class))).thenReturn(testThread);
+
+            DiscussionThread result = discussionService.updateThread(1, update);
+
+            assertEquals("Only Title", result.getTitle());
+            assertEquals("Original Body", result.getBody());
+        }
+
         @Test
         @DisplayName("updateThread - not found")
         void testUpdateThreadNotFound() {
@@ -271,6 +287,12 @@ class DiscussionServiceImplTest {
 
             when(threadRepository.findByAuthorId(101)).thenReturn(List.of(testThread));
             assertFalse(discussionService.getThreadsByAuthor(101).isEmpty());
+
+            when(threadRepository.findById(1)).thenReturn(Optional.of(testThread));
+            assertTrue(discussionService.getThreadById(1).isPresent());
+
+            when(replyRepository.findById(1)).thenReturn(Optional.of(testReply));
+            assertTrue(discussionService.getReplyById(1).isPresent());
 
             when(replyRepository.findByThreadIdOrderByIsAcceptedDescUpvotesDescCreatedAtAsc(1)).thenReturn(List.of(testReply));
             assertFalse(discussionService.getRepliesByThread(1).isEmpty());

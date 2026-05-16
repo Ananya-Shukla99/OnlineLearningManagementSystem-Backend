@@ -4,7 +4,10 @@ import com.edulearn.auth.entity.User;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import org.springframework.web.server.ResponseStatusException;
+
 import javax.crypto.SecretKey;
 import java.util.Date;
 
@@ -28,7 +31,7 @@ public class JwtTokenProvider {
                 .claim("role", user.getRole().toString())
                 .issuedAt(now)
                 .expiration(expiryDate)
-                .signWith(key, SignatureAlgorithm.HS512)
+                .signWith(key) // Algorithm inferred from key
                 .compact();
     }
 
@@ -39,12 +42,12 @@ public class JwtTokenProvider {
             Claims claims = Jwts.parser()
                     .verifyWith(key)
                     .build()
-                    .parseClaimsJws(token)
-                    .getBody();
+                    .parseSignedClaims(token)
+                    .getPayload();
 
             return claims.getSubject(); // Returns userId
-        } catch (MalformedJwtException | ExpiredJwtException | UnsupportedJwtException | IllegalArgumentException ex) {
-            throw new RuntimeException("Invalid JWT token: " + ex.getMessage());
+        } catch (JwtException | IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid JWT token: " + ex.getMessage());
         }
     }
 
@@ -55,12 +58,12 @@ public class JwtTokenProvider {
             Claims claims = Jwts.parser()
                     .verifyWith(key)
                     .build()
-                    .parseClaimsJws(token)
-                    .getBody();
+                    .parseSignedClaims(token)
+                    .getPayload();
 
             return (String) claims.get("email");
         } catch (JwtException ex) {
-            throw new RuntimeException("Invalid JWT token");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid JWT token");
         }
     }
 }

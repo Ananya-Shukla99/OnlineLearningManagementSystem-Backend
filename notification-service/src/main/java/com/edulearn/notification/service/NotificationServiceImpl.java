@@ -12,6 +12,8 @@ import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.stereotype.Service;
 import java.util.List;
 
 @Service
@@ -20,16 +22,58 @@ public class NotificationServiceImpl implements NotificationService {
     @Autowired
     private NotificationRepository notificationRepository;
 
+    @Autowired
+    private RestTemplate restTemplate;
+
     @RabbitListener(queues = RabbitMQConfig.QUEUE)
     public void handleNotification(NotificationDto dto) {
-        System.out.println("Received Notification from RabbitMQ: " + dto);
-        sendNotification(
-                dto.getUserId(),
-                dto.getType(),
-                dto.getTitle(),
-                dto.getMessage(),
-                dto.getRelatedEntityId(),
-                dto.getRelatedEntityType());
+        System.out.println("[NotificationService] Received from RabbitMQ: type=" + dto.getType()
+                + ", title=" + dto.getTitle() + ", message=" + dto.getMessage());
+
+        // Admin-targeted notifications: userId=1 is a placeholder that means "broadcast to all admins"
+        if (dto.getUserId() != null && dto.getUserId().longValue() == 1L
+                && dto.getType() != null
+                && (dto.getType().contains("ADMIN") || dto.getType().contains("PENDING"))) {
+            try {
+                @SuppressWarnings("unchecked")
+                java.util.Map<?, ?> response = restTemplate.getForObject(
+                        "http://localhost:8081/auth/users/role/ADMIN", java.util.Map.class);
+
+                if (response != null && response.get("data") instanceof java.util.List) {
+                    java.util.List<?> admins = (java.util.List<?>) response.get("data");
+                    if (admins.isEmpty()) {
+                        System.err.println("[NotificationService] WARNING: No admins found in auth-service response.");
+                    }
+                    for (Object adminObj : admins) {
+                        java.util.Map<?, ?> admin = (java.util.Map<?, ?>) adminObj;
+                        Long realAdminId = Long.valueOf(admin.get("userId").toString());
+                        System.out.println("[NotificationService] Sending notification to admin userId=" + realAdminId);
+                        sendNotification(
+                                realAdminId,
+                                dto.getType(),
+                                dto.getTitle(),
+                                dto.getMessage(),
+                                dto.getRelatedEntityId(),
+                                dto.getRelatedEntityType());
+                    }
+                } else {
+                    System.err.println("[NotificationService] WARNING: auth-service returned no 'data' list for /auth/users/role/ADMIN.");
+                }
+            } catch (Exception e) {
+                System.err.println("[NotificationService] ERROR: Could not reach auth-service to look up admins: " + e.getMessage()
+                        + ". Notification dropped — ensure auth-service is running on port 8081.");
+                // NOTE: Intentionally NOT falling back to a hardcoded ID here.
+                // A wrong hardcoded ID would silently deliver notifications to the wrong user.
+            }
+        } else {
+            sendNotification(
+                    dto.getUserId(),
+                    dto.getType(),
+                    dto.getTitle(),
+                    dto.getMessage(),
+                    dto.getRelatedEntityId(),
+                    dto.getRelatedEntityType());
+        }
     }
 
     @Override

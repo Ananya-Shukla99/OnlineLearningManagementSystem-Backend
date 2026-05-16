@@ -32,7 +32,14 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         if (enrollmentRepository.existsByStudentIdAndCourseId(studentId, courseId)) {
             throw new RuntimeException("Student already enrolled in this course");
         }
-        if (!isCoursePublished(courseId)) {
+        Map<String, Object> courseData = getCourseDetails(courseId);
+        if (courseData == null) {
+            throw new RuntimeException("Course not found");
+        }
+        
+        Object isPublishedObj = courseData.get("isPublished");
+        if (isPublishedObj == null) isPublishedObj = courseData.get("published");
+        if (!Boolean.TRUE.equals(isPublishedObj)) {
             throw new RuntimeException("Cannot enroll in an unpublished course");
         }
 
@@ -59,6 +66,35 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 
             rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE, RabbitMQConfig.ROUTING_KEY, notification);
             System.out.println("Notification sent to RabbitMQ for student: " + studentId);
+            
+            // Notify Admin
+            NotificationDto adminNotif = new NotificationDto();
+            adminNotif.setUserId(1L);
+            adminNotif.setType("NEW_ENROLLMENT_ADMIN");
+            adminNotif.setTitle("New Student Enrollment");
+            adminNotif.setMessage("A student (ID: " + studentId + ") has enrolled in course ID: " + courseId);
+            adminNotif.setRelatedEntityId(courseId);
+            adminNotif.setRelatedEntityType("COURSE");
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE, RabbitMQConfig.ROUTING_KEY, adminNotif);
+            System.out.println("Notification sent to RabbitMQ for admin");
+
+            // Notify Instructor
+            Object instructorIdObj = courseData.get("instructorId");
+            Object courseTitleObj = courseData.get("title");
+            if (instructorIdObj != null) {
+                Long instructorId = Long.valueOf(instructorIdObj.toString());
+                String courseTitle = courseTitleObj != null ? courseTitleObj.toString() : "Course " + courseId;
+                
+                NotificationDto instructorNotif = new NotificationDto();
+                instructorNotif.setUserId(instructorId);
+                instructorNotif.setType("NEW_ENROLLMENT_INSTRUCTOR");
+                instructorNotif.setTitle("New Student Enrolled!");
+                instructorNotif.setMessage("A student has just enrolled in your course: '" + courseTitle + "'.");
+                instructorNotif.setRelatedEntityId(courseId);
+                instructorNotif.setRelatedEntityType("COURSE");
+                rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE, RabbitMQConfig.ROUTING_KEY, instructorNotif);
+                System.out.println("Notification sent to RabbitMQ for instructor: " + instructorId);
+            }
         } catch (Exception e) {
             System.err.println("Failed to send RabbitMQ notification: " + e.getMessage());
         }
@@ -67,21 +103,21 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     }
 
     /**
-     * Check if a course is published via Feign Client (inter-service communication).
-     * Feign resolves "course-service" via Eureka — no hardcoded URLs.
+     * Fetch course details via Feign Client (inter-service communication).
      */
-    private boolean isCoursePublished(Long courseId) {
+    private Map<String, Object> getCourseDetails(Long courseId) {
         try {
             Map<String, Object> response = courseClient.getCourse(courseId);
             Object data = response.get("data");
-            if (!(data instanceof Map<?, ?> mapData)) return false;
-            Object isPublished = mapData.get("isPublished");
-            if (isPublished == null) isPublished = mapData.get("published");
-            return Boolean.TRUE.equals(isPublished);
+            if (data instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> mapData = (Map<String, Object>) data;
+                return mapData;
+            }
         } catch (Exception ex) {
             System.err.println("Error verifying course status via Feign: " + ex.getMessage());
-            return false;
         }
+        return null;
     }
 
     @Override

@@ -10,7 +10,7 @@ import com.edulearn.auth.entity.User;
 import com.edulearn.auth.entity.UserRole;
 import com.edulearn.auth.repository.UserRepository;
 import com.edulearn.auth.service.AuthService;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.edulearn.auth.service.OtpService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -32,11 +32,18 @@ import java.util.stream.Collectors;
 @Tag(name = "Authentication", description = "Authentication and Authorization API endpoints")
 public class AuthController {
 
-    @Autowired
-    private AuthService authService;
+    private final AuthService authService;
+    private final UserRepository userRepository;
+    private final OtpService otpService;
 
-    @Autowired
-    private UserRepository userRepository;
+    private static final String SUCCESS = "success";
+    private static final String MESSAGE = "message";
+
+    public AuthController(AuthService authService, UserRepository userRepository, OtpService otpService) {
+        this.authService = authService;
+        this.userRepository = userRepository;
+        this.otpService = otpService;
+    }
 
     // ─── Helper: User → UserSummaryDTO ──────────────────────────────────────
     private UserSummaryDTO toSummaryDTO(User user) {
@@ -51,6 +58,29 @@ public class AuthController {
         );
     }
 
+    private AuthResponse toAuthResponse(User user, String message, String token) {
+        AuthResponse response = new AuthResponse();
+        response.setSuccess(true);
+        response.setMessage(message);
+        if (token != null) response.setToken(token);
+        response.setUserId(user.getUserId());
+        response.setEmail(user.getEmail());
+        response.setFullName(user.getFullName());
+        response.setRole(user.getRole().toString());
+        response.setBio(user.getBio());
+        response.setMobile(user.getMobile());
+        response.setHeadline(user.getHeadline());
+        response.setExpertise(user.getExpertise());
+        return response;
+    }
+
+    private AuthResponse errorResponse(String message) {
+        AuthResponse response = new AuthResponse();
+        response.setSuccess(false);
+        response.setMessage(message);
+        return response;
+    }
+
     // ═══════════════════════════════════════════════════════════════════════════
     // PUBLIC ENDPOINTS
     // ═══════════════════════════════════════════════════════════════════════════
@@ -63,10 +93,15 @@ public class AuthController {
     @Operation(summary = "Register a new user", description = "Create a new user account with email, password, and role")
     @ApiResponses(value = {
         @ApiResponse(responseCode = "201", description = "User registered successfully", content = @Content(mediaType = "application/json", schema = @Schema(implementation = AuthResponse.class))),
-        @ApiResponse(responseCode = "400", description = "Invalid registration request")
+        @ApiResponse(responseCode = "400", description = "Invalid registration request or OTP")
     })
     public ResponseEntity<AuthResponse> register(@RequestBody RegisterRequest request) {
         try {
+            // Verify OTP
+            if (!otpService.verifyOtp(request.getEmail(), request.getOtp())) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse("Invalid or expired OTP"));
+            }
+
             User user = authService.register(
                     request.getEmail(),
                     request.getFullName(),
@@ -74,22 +109,31 @@ public class AuthController {
                     request.getRole()
             );
 
-            AuthResponse response = new AuthResponse();
-            response.setSuccess(true);
-            response.setMessage("User registered successfully");
-            response.setUserId(user.getUserId());
-            response.setEmail(user.getEmail());
-            response.setFullName(user.getFullName());
-            response.setRole(user.getRole().toString());
-
-            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+            return ResponseEntity.status(HttpStatus.CREATED).body(toAuthResponse(user, "User registered successfully", null));
 
         } catch (RuntimeException e) {
-            AuthResponse response = new AuthResponse();
-            response.setSuccess(false);
-            response.setMessage(e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse(e.getMessage()));
+        }
+    }
 
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    /**
+     * POST /auth/send-otp
+     * Send OTP to email for registration
+     */
+    @PostMapping("/send-otp")
+    @Operation(summary = "Send OTP to email", description = "Generates and sends an OTP to the given email address for registration")
+    public ResponseEntity<AuthResponse> sendOtp(@RequestParam String email) {
+        try {
+            if (userRepository.findByEmail(email).isPresent()) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse("Email is already registered"));
+            }
+            otpService.generateAndSendOtp(email);
+            AuthResponse response = new AuthResponse();
+            response.setSuccess(true);
+            response.setMessage("OTP sent successfully");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse("Failed to send OTP: " + e.getMessage()));
         }
     }
 
@@ -108,23 +152,10 @@ public class AuthController {
             String token = authService.login(request.getEmail(), request.getPassword());
             User user = authService.getUserByEmail(request.getEmail()).orElseThrow();
 
-            AuthResponse response = new AuthResponse();
-            response.setSuccess(true);
-            response.setMessage("Login successful");
-            response.setToken(token);
-            response.setUserId(user.getUserId());
-            response.setEmail(user.getEmail());
-            response.setFullName(user.getFullName());
-            response.setRole(user.getRole().toString());
-
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(toAuthResponse(user, "Login successful", token));
 
         } catch (RuntimeException e) {
-            AuthResponse response = new AuthResponse();
-            response.setSuccess(false);
-            response.setMessage(e.getMessage());
-
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse(e.getMessage()));
         }
     }
 
@@ -204,21 +235,10 @@ public class AuthController {
             User user = authService.getUserById(userId)
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
-            AuthResponse response = new AuthResponse();
-            response.setSuccess(true);
-            response.setMessage("User retrieved successfully");
-            response.setUserId(user.getUserId());
-            response.setEmail(user.getEmail());
-            response.setFullName(user.getFullName());
-            response.setRole(user.getRole().toString());
-
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(toAuthResponse(user, "User retrieved successfully", null));
 
         } catch (RuntimeException e) {
-            AuthResponse response = new AuthResponse();
-            response.setSuccess(false);
-            response.setMessage(e.getMessage());
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse(e.getMessage()));
         }
     }
 
@@ -233,14 +253,14 @@ public class AuthController {
             User user = authService.getUserById(userId)
                     .orElseThrow(() -> new RuntimeException("User not found"));
             return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "message", "User retrieved successfully",
+                    SUCCESS, true,
+                    MESSAGE, "User retrieved successfully",
                     "data", toSummaryDTO(user)
             ));
         } catch (RuntimeException e) {
             Map<String, Object> errorResponse = new java.util.HashMap<>();
-            errorResponse.put("success", false);
-            errorResponse.put("message", e.getMessage());
+            errorResponse.put(SUCCESS, false);
+            errorResponse.put(MESSAGE, e.getMessage());
             errorResponse.put("data", null);
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse);
         }
@@ -258,24 +278,15 @@ public class AuthController {
                     request.getUserId(),
                     request.getFullName(),
                     request.getBio(),
-                    request.getMobile()
+                    request.getMobile(),
+                    request.getHeadline(),
+                    request.getExpertise()
             );
 
-            AuthResponse response = new AuthResponse();
-            response.setSuccess(true);
-            response.setMessage("Profile updated successfully");
-            response.setUserId(updatedUser.getUserId());
-            response.setEmail(updatedUser.getEmail());
-            response.setFullName(updatedUser.getFullName());
-            response.setRole(updatedUser.getRole().toString());
-
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(toAuthResponse(updatedUser, "Profile updated successfully", null));
 
         } catch (RuntimeException e) {
-            AuthResponse response = new AuthResponse();
-            response.setSuccess(false);
-            response.setMessage(e.getMessage());
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse(e.getMessage()));
         }
     }
 
@@ -321,10 +332,10 @@ public class AuthController {
         List<UserSummaryDTO> users = userRepository.findAll()
                 .stream()
                 .map(this::toSummaryDTO)
-                .collect(Collectors.toList());
+                .toList();
         return ResponseEntity.ok(Map.of(
-                "success", true,
-                "message", "Users retrieved successfully",
+                SUCCESS, true,
+                MESSAGE, "Users retrieved successfully",
                 "data", users
         ));
     }
@@ -341,16 +352,16 @@ public class AuthController {
             List<UserSummaryDTO> users = userRepository.findAllByRole(userRole)
                     .stream()
                     .map(this::toSummaryDTO)
-                    .collect(Collectors.toList());
+                    .toList();
             return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "message", "Users retrieved successfully",
+                    SUCCESS, true,
+                    MESSAGE, "Users retrieved successfully",
                     "data", users
             ));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(Map.of(
-                    "success", false,
-                    "message", "Invalid role",
+                    SUCCESS, false,
+                    MESSAGE, "Invalid role",
                     "data", List.of()
             ));
         }

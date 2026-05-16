@@ -9,15 +9,15 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface ReviewRepository extends JpaRepository<Review, Integer> {
+public interface ReviewRepository extends JpaRepository<Review, Long> {
 
-    List<Review> findByCourseId(Integer courseId);
+    List<Review> findByCourseId(Long courseId);
 
-    Optional<Review> findByStudentIdAndCourseId(Integer studentId, Integer courseId);
+    Optional<Review> findByStudentIdAndCourseId(Long studentId, Long courseId);
 
     @Query("SELECT AVG(r.rating) FROM Review r WHERE r.courseId = :courseId")
-    Double findAverageRatingByCourseId(@Param("courseId") Integer courseId);
+    Double findAverageRatingByCourseId(@Param("courseId") Long courseId);
 
     @Query("SELECT COUNT(r) FROM Review r WHERE r.courseId = :courseId")
-    Long countByCourseId(@Param("courseId") Integer courseId);
+    Long countByCourseId(@Param("courseId") Long courseId);
 }

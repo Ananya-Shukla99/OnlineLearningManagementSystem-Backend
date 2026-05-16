@@ -42,6 +42,12 @@ public class User {
     @Column
     private String provider; // e.g., "google", "github", or "local"
 
+    @Column(length = 150)
+    private String headline;
+
+    @Column(length = 500)
+    private String expertise;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

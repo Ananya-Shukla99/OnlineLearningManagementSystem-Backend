@@ -10,7 +10,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 @SpringBootApplication
 @EnableDiscoveryClient
 @EnableFeignClients
-@org.springframework.context.annotation.ComponentScan(basePackages = {"com.edulearn.payment", "com.edulearn.notification"})
 public class PaymentServiceApplication {
 
 	public static void main(String[] args) {

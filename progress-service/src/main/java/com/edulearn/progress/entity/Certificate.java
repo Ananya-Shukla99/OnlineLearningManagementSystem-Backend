@@ -12,7 +12,7 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 
 /**
  * Certificate entity for course completion certificates
- * Stores generated certificate details and verification code
+ * Stores generated certificate details and verification code 
  */
 @Entity
 @Table(name = "certificates")
@@ -53,13 +53,15 @@ public class Certificate {
     @Column(name = "student_name")
     private String studentName;
 
+    /** Template id matching CertificatePdfTemplate (CLASSIC_RED, SAGE_BOTANICAL, …) */
+    @Column(name = "certificate_format", length = 40)
+    private String certificateFormat;
+
     @PrePersist
     protected void onCreate() {
         if (issuedAt == null) {
            issuedAt = LocalDate.now();
         }
     }
-
-
 }
 

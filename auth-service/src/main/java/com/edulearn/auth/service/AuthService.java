@@ -21,7 +21,7 @@ public interface AuthService {
 
     void changePassword(Long userId, String oldPassword, String newPassword);
 
-    User updateProfile(Long userId, String fullName, String bio, String mobile);
+    User updateProfile(Long userId, String fullName, String bio, String mobile, String headline, String expertise);
 
     void deleteUser(Long userId);
 }

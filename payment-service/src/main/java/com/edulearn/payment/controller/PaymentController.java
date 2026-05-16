@@ -2,7 +2,6 @@ package com.edulearn.payment.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -24,8 +23,11 @@ import java.util.Map;
 @Tag(name = "Payment Service", description = "Payment processing and subscription management")
 public class PaymentController {
 
-    @Autowired
-    private PaymentService paymentService;
+    private final PaymentService paymentService;
+
+    public PaymentController(PaymentService paymentService) {
+        this.paymentService = paymentService;
+    }
 
     @PostMapping("/create-order")
     @Operation(summary = "Create payment order", description = "Create a Razorpay order for course purchase")

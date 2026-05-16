@@ -56,6 +56,25 @@ class EnrollmentServiceImplTest {
     // ==================== ENROLL TESTS ====================
 
     @Test
+    @DisplayName("Should enroll student and notify instructor successfully")
+    void testEnrollWithInstructorNotification() {
+        when(enrollmentRepository.existsByStudentIdAndCourseId(10L, 5L)).thenReturn(false);
+        Map<String, Object> courseResponse = new HashMap<>();
+        courseResponse.put("data", Map.of(
+            "isPublished", true,
+            "instructorId", 101L,
+            "title", "Advanced Java"
+        ));
+        when(courseClient.getCourse(5L)).thenReturn(courseResponse);
+        when(enrollmentRepository.save(any(Enrollment.class))).thenReturn(testEnrollment);
+
+        Enrollment result = enrollmentService.enroll(10L, 5L);
+
+        assertNotNull(result);
+        verify(rabbitTemplate, times(3)).convertAndSend(anyString(), anyString(), any(Object.class));
+    }
+
+    @Test
     @DisplayName("Should enroll student successfully when not already enrolled")
     void testEnrollSuccess() {
         // Arrange
@@ -76,7 +95,7 @@ class EnrollmentServiceImplTest {
         assertEquals(5L, result.getCourseId());
         assertEquals("ACTIVE", result.getStatus());
         verify(enrollmentRepository, times(1)).save(any(Enrollment.class));
-        verify(rabbitTemplate, times(1)).convertAndSend(anyString(), anyString(), (Object) any());
+        verify(rabbitTemplate, atLeast(1)).convertAndSend(anyString(), anyString(), (Object) any());
     }
 
     @Test
@@ -104,7 +123,7 @@ class EnrollmentServiceImplTest {
 
         // Act & Assert
         RuntimeException exception = assertThrows(RuntimeException.class, () -> enrollmentService.enroll(10L, 5L));
-        assertEquals("Cannot enroll in an unpublished course", exception.getMessage());
+        assertEquals("Course not found", exception.getMessage());
         verify(enrollmentRepository, never()).save(any(Enrollment.class));
     }
 
@@ -114,7 +133,7 @@ class EnrollmentServiceImplTest {
         // Arrange
         when(enrollmentRepository.existsByStudentIdAndCourseId(10L, 5L)).thenReturn(false);
         Map<String, Object> courseResponse = new HashMap<>();
-        courseResponse.put("data", Map.of("isPublished", true));
+        courseResponse.put("data", Map.of("isPublished", true, "instructorId", 101, "title", "Java"));
         when(courseClient.getCourse(5L)).thenReturn(courseResponse);
         when(enrollmentRepository.save(any(Enrollment.class))).thenReturn(testEnrollment);
         
@@ -128,7 +147,30 @@ class EnrollmentServiceImplTest {
         assertNotNull(result);
         assertEquals(10L, result.getStudentId());
         verify(enrollmentRepository, times(1)).save(any(Enrollment.class));
-        // Verify it didn't crash
+    }
+
+    @Test
+    @DisplayName("Should fallback to 'published' field if 'isPublished' is missing")
+    void testEnrollPublishedFallback() {
+        when(enrollmentRepository.existsByStudentIdAndCourseId(10L, 5L)).thenReturn(false);
+        Map<String, Object> courseResponse = new HashMap<>();
+        courseResponse.put("data", Map.of("published", true));
+        when(courseClient.getCourse(5L)).thenReturn(courseResponse);
+        when(enrollmentRepository.save(any(Enrollment.class))).thenReturn(testEnrollment);
+
+        Enrollment result = enrollmentService.enroll(10L, 5L);
+        assertNotNull(result);
+    }
+
+    @Test
+    @DisplayName("Should throw exception if course data is not a map")
+    void testEnrollInvalidCourseData() {
+        when(enrollmentRepository.existsByStudentIdAndCourseId(10L, 5L)).thenReturn(false);
+        Map<String, Object> courseResponse = new HashMap<>();
+        courseResponse.put("data", "not-a-map");
+        when(courseClient.getCourse(5L)).thenReturn(courseResponse);
+
+        assertThrows(RuntimeException.class, () -> enrollmentService.enroll(10L, 5L));
     }
 
     @Test

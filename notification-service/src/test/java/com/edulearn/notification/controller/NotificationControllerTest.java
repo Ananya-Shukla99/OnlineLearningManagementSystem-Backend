@@ -72,10 +72,9 @@ class NotificationControllerTest {
     void testGetByUser() throws Exception {
         when(notificationService.getNotificationsByUser(101L)).thenReturn(List.of(testNotification));
 
-        mockMvc.perform(get("/api/v1/notifications/user/101"))
+        mockMvc.perform(get("/api/notifications/user/101"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data[0].userId").value(101L));
+                .andExpect(jsonPath("$[0].userId").value(101L));
     }
 
     @Test
@@ -83,30 +82,28 @@ class NotificationControllerTest {
     void testGetUnread() throws Exception {
         when(notificationService.getUnreadNotifications(101L)).thenReturn(List.of(testNotification));
 
-        mockMvc.perform(get("/api/v1/notifications/unread/101"))
+        mockMvc.perform(get("/api/notifications/unread/101"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
+                .andExpect(jsonPath("$[0].userId").value(101L));
     }
 
     @Test
-    @DisplayName("GET /unread/count/{userId} - Success")
+    @DisplayName("GET /unread-count/{userId} - Success")
     void testGetUnreadCount() throws Exception {
         when(notificationService.getUnreadCount(101L)).thenReturn(5);
 
-        mockMvc.perform(get("/api/v1/notifications/unread/count/101"))
+        mockMvc.perform(get("/api/notifications/unread-count/101"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data").value(5));
+                .andExpect(content().string("5"));
     }
 
     @Test
-    @DisplayName("PUT /read/{notificationId} - Success")
+    @DisplayName("PUT /{notificationId}/read - Success")
     void testMarkAsRead() throws Exception {
         doNothing().when(notificationService).markAsRead(1L);
 
-        mockMvc.perform(put("/api/v1/notifications/read/1"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
+        mockMvc.perform(put("/api/notifications/1/read"))
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -114,9 +111,8 @@ class NotificationControllerTest {
     void testMarkAllAsRead() throws Exception {
         doNothing().when(notificationService).markAllAsRead(101L);
 
-        mockMvc.perform(put("/api/v1/notifications/read-all/101"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
+        mockMvc.perform(put("/api/notifications/read-all/101"))
+                .andExpect(status().isOk());
     }
 
     @Test
@@ -124,8 +120,7 @@ class NotificationControllerTest {
     void testDelete() throws Exception {
         doNothing().when(notificationService).deleteNotification(1L);
 
-        mockMvc.perform(delete("/api/v1/notifications/1"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
+        mockMvc.perform(delete("/api/notifications/1"))
+                .andExpect(status().isOk());
     }
 }

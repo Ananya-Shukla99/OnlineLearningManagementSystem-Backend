@@ -84,6 +84,24 @@ class LessonServiceImplTest {
             assertEquals(1, result.getOrderIndex());
             assertFalse(result.getIsPreview());
         }
+
+        @Test
+        @DisplayName("Should apply default values when fields are null")
+        void testAddLessonDefaults() {
+            Lesson minimal = new Lesson();
+            minimal.setCourseId(101);
+            
+            when(lessonRepository.countByCourseId(101)).thenReturn(5);
+            when(lessonRepository.save(any(Lesson.class))).thenAnswer(i -> i.getArgument(0));
+
+            Lesson result = lessonService.addLesson(minimal);
+
+            assertEquals("VIDEO", result.getContentType());
+            assertNotNull(result.getContentUrl());
+            assertEquals(5, result.getDurationMinutes());
+            assertEquals(5, result.getOrderIndex());
+            assertFalse(result.getIsPreview());
+        }
     }
 
     // ─── getLessonsByCourse ───────────────────────────────────────────

@@ -141,11 +141,14 @@ public class JwtGatewayFilter implements WebFilter, Ordered {
             return true;
         }
 
-        // Auth endpoints (login, register, validate, refresh)
         if (path.startsWith("/auth/login")
                 || path.startsWith("/auth/register")
                 || path.startsWith("/auth/refresh")
-                || path.startsWith("/auth/validate")) {
+                || path.startsWith("/auth/validate")
+                || path.startsWith("/auth/send-otp")
+                || path.startsWith("/api/v1/auth/google-login")
+                || path.startsWith("/oauth2/")
+                || path.startsWith("/login/oauth2/")) {
             return true;
         }
 

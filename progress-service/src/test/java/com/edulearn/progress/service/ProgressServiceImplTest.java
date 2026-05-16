@@ -1,7 +1,11 @@
 package com.edulearn.progress.service;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 import java.time.LocalDate;
@@ -16,14 +20,16 @@ import org.junit.jupiter.api.DisplayName;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
 import com.edulearn.progress.entity.Progress;
 import com.edulearn.progress.entity.Certificate;
+import com.edulearn.progress.pdf.CertificatePdfGenerator;
+import com.edulearn.progress.pdf.CertificatePdfTemplate;
 import com.edulearn.progress.repository.ProgressRepository;
 import com.edulearn.progress.repository.CertificateRepository;
 
@@ -43,6 +49,12 @@ class ProgressServiceImplTest {
     @Mock
     private RestTemplate restTemplate;
 
+    @Mock
+    private RabbitTemplate rabbitTemplate;
+
+    @Mock
+    private CertificatePdfGenerator certificatePdfGenerator;
+
     @InjectMocks
     private ProgressServiceImpl progressService;
 
@@ -53,8 +65,8 @@ class ProgressServiceImplTest {
     void setUp() {
         MockitoAnnotations.openMocks(this);
 
-        // Set certificate output path for PDF generation
-        ReflectionTestUtils.setField(progressService, "certificateOutputPath", "src/main/resources/certificates/");
+        when(certificatePdfGenerator.generate(any(CertificatePdfTemplate.class), anyLong(), anyLong(), anyString(),
+                anyString(), anyString())).thenReturn("src/main/resources/certificates/cert_1_1.pdf");
 
         // Test data setup
         testProgress = Progress.builder()
@@ -193,6 +205,54 @@ class ProgressServiceImplTest {
     }
 
     @Test
+    @DisplayName("Should mark lesson complete and auto-issue certificate when 100%")
+    void testMarkLessonCompleteAndAutoIssue() {
+        Long studentId = 1L;
+        Long courseId = 1L;
+        Long lessonId = 1L;
+
+        when(progressRepository.findByStudentIdAndLessonId(studentId, lessonId)).thenReturn(Optional.empty());
+        when(progressRepository.save(any())).thenReturn(testProgress);
+        
+        // Mock getCourseProgress to return 100
+        when(progressRepository.countByStudentIdAndCourseIdAndIsCompleted(studentId, courseId, true)).thenReturn(3);
+        when(restTemplate.getForObject(contains("/lessons/count/"), eq(Integer.class))).thenReturn(3);
+        
+        // Mock issueCertificate success
+        when(certificateRepository.existsByStudentIdAndCourseId(studentId, courseId)).thenReturn(false);
+        when(certificateRepository.save(any())).thenReturn(testCertificate);
+        
+        Map<String, Object> result = progressService.markLessonComplete(studentId, courseId, lessonId);
+        
+        assertTrue((Boolean) result.get("courseCompleted"));
+        assertTrue((Boolean) result.get("certificateIssued"));
+        assertNotNull(result.get("certificate"));
+    }
+
+    @Test
+    @DisplayName("Should handle certificate issuance failure during mark complete")
+    void testMarkLessonCompleteAutoIssueFailure() {
+        Long studentId = 1L;
+        Long courseId = 1L;
+        Long lessonId = 1L;
+
+        when(progressRepository.findByStudentIdAndLessonId(studentId, lessonId)).thenReturn(Optional.empty());
+        when(progressRepository.save(any())).thenReturn(testProgress);
+        when(progressRepository.countByStudentIdAndCourseIdAndIsCompleted(studentId, courseId, true)).thenReturn(3);
+        when(restTemplate.getForObject(contains("/lessons/count/"), eq(Integer.class))).thenReturn(3);
+        
+        // Trigger error in issueCertificate by making save fail
+        when(certificateRepository.existsByStudentIdAndCourseId(studentId, courseId)).thenReturn(false);
+        when(certificateRepository.save(any())).thenThrow(new RuntimeException("Database error"));
+        when(certificateRepository.findByStudentIdAndCourseId(studentId, courseId)).thenReturn(Optional.empty());
+
+        Map<String, Object> result = progressService.markLessonComplete(studentId, courseId, lessonId);
+        
+        assertFalse((Boolean) result.get("certificateIssued"));
+        assertEquals("Database error", result.get("certificateError"));
+    }
+
+    @Test
     @DisplayName("Should create and mark new lesson as complete")
     void testMarkLessonCompleteNew() {
         // Arrange
@@ -291,6 +351,31 @@ class ProgressServiceImplTest {
         // Assert
         assertEquals(100, progress);
         verify(progressRepository, times(1)).countByStudentIdAndCourseIdAndIsCompleted(studentId, courseId, true);
+    }
+
+    @Test
+    @DisplayName("Should use enrollment-service fallback when progress < 100%")
+    void testGetCourseProgressEnrollmentFallback() {
+        Long studentId = 1L;
+        Long courseId = 1L;
+
+        when(progressRepository.countByStudentIdAndCourseIdAndIsCompleted(studentId, courseId, true)).thenReturn(1);
+        when(restTemplate.getForObject(contains("/lessons/count/"), eq(Integer.class))).thenReturn(2); // 50%
+
+        Map<String, Object> enrollData = Map.of("courseId", 1L, "progressPercent", 80);
+        Map<String, Object> enrollRes = Map.of("data", List.of(enrollData));
+        when(restTemplate.getForObject(contains("/enrollments/student/"), eq(Map.class))).thenReturn(enrollRes);
+
+        Integer progress = progressService.getCourseProgress(studentId, courseId);
+        assertEquals(80, progress);
+    }
+
+    @Test
+    @DisplayName("Should handle lesson-service error gracefully")
+    void testGetCourseProgressLessonServiceError() {
+        when(restTemplate.getForObject(contains("/lessons/count/"), eq(Integer.class))).thenThrow(new RuntimeException("Down"));
+        Integer progress = progressService.getCourseProgress(1L, 1L);
+        assertEquals(0, progress);
     }
 
     // ============================================
@@ -418,6 +503,99 @@ class ProgressServiceImplTest {
         assertNotNull(result.getVerificationCode());
         assertTrue(result.getVerificationCode().startsWith("EL-"));
         assertTrue(result.getVerificationCode().contains(String.valueOf(LocalDate.now().getYear())));
+    }
+
+    @Test
+    @DisplayName("Should handle student name fetch failure and use fallback")
+    void testIssueCertificateStudentNameFallback() {
+        Long studentId = 1L;
+        Long courseId = 1L;
+
+        when(progressRepository.countByStudentIdAndCourseIdAndIsCompleted(studentId, courseId, true)).thenReturn(1);
+        when(restTemplate.getForObject(contains("/lessons/count/"), eq(Integer.class))).thenReturn(1);
+        when(certificateRepository.existsByStudentIdAndCourseId(studentId, courseId)).thenReturn(false);
+        
+        // Mock first fetch failure
+        when(restTemplate.getForObject(contains("/auth/user/"), eq(Map.class))).thenThrow(new RuntimeException("Service Down"));
+        
+        when(certificateRepository.save(any())).thenReturn(testCertificate);
+
+        Certificate result = progressService.issueCertificate(studentId, courseId);
+        assertNotNull(result);
+    }
+
+    @Test
+    @DisplayName("Should throw exception when course not completed during issuance")
+    void testIssueCertificateNotCompleted() {
+        when(progressRepository.countByStudentIdAndCourseIdAndIsCompleted(anyLong(), anyLong(), anyBoolean())).thenReturn(0);
+        when(restTemplate.getForObject(contains("/lessons/count/"), eq(Integer.class))).thenReturn(1);
+        
+        // Mock enrollment fallback returning not 100
+        Map<String, Object> enrollData = Map.of("courseId", 1L, "progressPercent", 50);
+        when(restTemplate.getForObject(contains("/enrollments/student/"), eq(Map.class))).thenReturn(Map.of("data", List.of(enrollData)));
+
+        assertThrows(RuntimeException.class, () -> progressService.issueCertificate(1L, 1L));
+    }
+
+    @Test
+    @DisplayName("Should use enrollment fallback successfully in issueCertificate")
+    void testIssueCertificateEnrollmentFallbackSuccess() {
+        Long studentId = 1L;
+        Long courseId = 1L;
+
+        when(progressRepository.countByStudentIdAndCourseIdAndIsCompleted(studentId, courseId, true)).thenReturn(0);
+        when(restTemplate.getForObject(contains("/lessons/count/"), eq(Integer.class))).thenReturn(1);
+        
+        // Mock enrollment fallback returning 100
+        Map<String, Object> enrollData = Map.of("courseId", 1L, "progressPercent", 100);
+        when(restTemplate.getForObject(contains("/enrollments/student/"), eq(Map.class))).thenReturn(Map.of("data", List.of(enrollData)));
+        
+        when(certificateRepository.existsByStudentIdAndCourseId(studentId, courseId)).thenReturn(false);
+        when(certificateRepository.save(any())).thenReturn(testCertificate);
+
+        Certificate result = progressService.issueCertificate(studentId, courseId);
+        assertNotNull(result);
+    }
+
+    @Test
+    @DisplayName("Should handle student name from auth-service 'name' field")
+    void testIssueCertificateStudentNameFromOtherField() {
+        Long studentId = 1L;
+        Long courseId = 1L;
+
+        when(progressRepository.countByStudentIdAndCourseIdAndIsCompleted(studentId, courseId, true)).thenReturn(1);
+        when(restTemplate.getForObject(contains("/lessons/count/"), eq(Integer.class))).thenReturn(1);
+        when(certificateRepository.existsByStudentIdAndCourseId(studentId, courseId)).thenReturn(false);
+        
+        // Mock user with 'name' instead of 'fullName'
+        Map<String, Object> userData = Map.of("name", "Short Name");
+        when(restTemplate.getForObject(contains("/auth/user/"), eq(Map.class))).thenReturn(Map.of("data", userData));
+        
+        when(certificateRepository.save(any())).thenReturn(testCertificate);
+
+        Certificate result = progressService.issueCertificate(studentId, courseId);
+        assertNotNull(result);
+    }
+
+    @Test
+    @DisplayName("Should fallback to Gateway for student name")
+    void testIssueCertificateGatewayFallback() {
+        Long studentId = 1L;
+        Long courseId = 1L;
+
+        when(progressRepository.countByStudentIdAndCourseIdAndIsCompleted(studentId, courseId, true)).thenReturn(1);
+        when(restTemplate.getForObject(contains("/lessons/count/"), eq(Integer.class))).thenReturn(1);
+        when(certificateRepository.existsByStudentIdAndCourseId(studentId, courseId)).thenReturn(false);
+        
+        // Mock port 8081 failure, port 8080 success
+        when(restTemplate.getForObject("http://localhost:8081/auth/user/1", Map.class)).thenThrow(new RuntimeException("8081 Down"));
+        Map<String, Object> userData = Map.of("fullName", "Gateway User");
+        when(restTemplate.getForObject("http://localhost:8080/auth/user/1", Map.class)).thenReturn(Map.of("data", userData));
+        
+        when(certificateRepository.save(any())).thenReturn(testCertificate);
+
+        Certificate result = progressService.issueCertificate(studentId, courseId);
+        assertNotNull(result);
     }
 
     // ============================================
@@ -599,4 +777,3 @@ class ProgressServiceImplTest {
         verify(certificateRepository, times(1)).findByStudentId(studentId);
     }
 }
-

@@ -5,7 +5,6 @@ import com.edulearn.payment.entity.Payment;
 import com.edulearn.payment.entity.Subscription;
 import com.edulearn.payment.repository.PaymentRepository;
 import com.edulearn.payment.repository.SubscriptionRepository;
-import com.edulearn.notification.event.PaymentEvent;
 import com.razorpay.RazorpayClient;
 import org.json.JSONObject;
 import com.edulearn.notification.dto.NotificationDto;
@@ -16,9 +15,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
-
-import jakarta.servlet.http.HttpServletRequest;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -34,33 +30,32 @@ import java.util.*;
 @Service
 public class PaymentServiceImpl implements PaymentService {
 
-    @Autowired
-    private PaymentRepository paymentRepository;
+    private final PaymentRepository paymentRepository;
+    private final SubscriptionRepository subscriptionRepository;
+    private final EnrollmentClient enrollmentClient;
+    private final RabbitTemplate rabbitTemplate;
+    private final ApplicationEventPublisher eventPublisher;
+    private final String razorpayKeyId;
+    private final String razorpayKeySecret;
+    private final RazorpayClient razorpayClient;
 
     @Autowired
-    private SubscriptionRepository subscriptionRepository;
-
-    @Autowired
-    private EnrollmentClient enrollmentClient;
-
-    @Autowired
-    private RabbitTemplate rabbitTemplate;
-
-    @Autowired
-    private ApplicationEventPublisher eventPublisher;
-
-    @Value("${razorpay.key.id}")
-    private String razorpayKeyId;
-
-    @Value("${razorpay.key.secret}")
-    private String razorpayKeySecret;
-
-    private RazorpayClient razorpayClient;
-
-
-     //Initialize Razorpay client
-    @Autowired
-    public void initRazorpay() {
+    public PaymentServiceImpl(
+            PaymentRepository paymentRepository,
+            SubscriptionRepository subscriptionRepository,
+            EnrollmentClient enrollmentClient,
+            RabbitTemplate rabbitTemplate,
+            ApplicationEventPublisher eventPublisher,
+            @Value("${razorpay.key.id}") String razorpayKeyId,
+            @Value("${razorpay.key.secret}") String razorpayKeySecret) {
+        this.paymentRepository = paymentRepository;
+        this.subscriptionRepository = subscriptionRepository;
+        this.enrollmentClient = enrollmentClient;
+        this.rabbitTemplate = rabbitTemplate;
+        this.eventPublisher = eventPublisher;
+        this.razorpayKeyId = razorpayKeyId;
+        this.razorpayKeySecret = razorpayKeySecret;
+        
         try {
             this.razorpayClient = new RazorpayClient(razorpayKeyId, razorpayKeySecret);
         } catch (Exception e) {
@@ -75,14 +70,12 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     public Map<String, String> createOrder(Long studentId, Long courseId, Double amount) {
         try {
-            RazorpayClient razorpay = new RazorpayClient(razorpayKeyId, razorpayKeySecret);
-
             JSONObject orderRequest = new JSONObject();
             orderRequest.put("amount", (int) (amount * 100)); // amount in the smallest currency unit
             orderRequest.put("currency", "INR");
             orderRequest.put("receipt", "txn_" + System.currentTimeMillis());
 
-            com.razorpay.Order order = razorpay.orders.create(orderRequest);
+            com.razorpay.Order order = razorpayClient.orders.create(orderRequest);
 
             // Step 2: Persist the pending payment record
             Payment payment = new Payment();

@@ -7,10 +7,11 @@ import com.edulearn.auth.util.JwtTokenProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.DisplayName;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Optional;
 
@@ -27,15 +28,15 @@ class AuthServiceImplTest {
     @Mock
     private JwtTokenProvider jwtTokenProvider;
 
-    @InjectMocks
     private AuthServiceImpl authService;
 
-    private BCryptPasswordEncoder passwordEncoder;
+    private PasswordEncoder passwordEncoder;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
         passwordEncoder = new BCryptPasswordEncoder();
+        authService = new AuthServiceImpl(userRepository, jwtTokenProvider, passwordEncoder);
     }
 
     @Test
@@ -75,11 +76,11 @@ class AuthServiceImplTest {
         when(userRepository.existsByEmail(email)).thenReturn(true);
 
         // Act & Assert
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class, () -> {
             authService.register(email, "John Doe", "password123", "STUDENT");
         });
 
-        assertEquals("User already exists with email: " + email, exception.getMessage());
+        assertEquals("User already exists with email: " + email, exception.getReason());
         verify(userRepository, never()).save(any(User.class));
     }
 
@@ -118,11 +119,11 @@ class AuthServiceImplTest {
         when(userRepository.findByEmail(email)).thenReturn(Optional.empty());
 
         // Act & Assert
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class, () -> {
             authService.login(email, "password123");
         });
 
-        assertEquals("User not found with email: " + email, exception.getMessage());
+        assertEquals("User not found with email: " + email, exception.getReason());
     }
 
     @Test
@@ -142,11 +143,11 @@ class AuthServiceImplTest {
         when(userRepository.findByEmail(email)).thenReturn(Optional.of(user));
 
         // Act & Assert
-        RuntimeException exception = assertThrows(RuntimeException.class, () -> {
+        ResponseStatusException exception = assertThrows(ResponseStatusException.class, () -> {
             authService.login(email, wrongPassword);
         });
 
-        assertEquals("Invalid password", exception.getMessage());
+        assertEquals("Invalid password", exception.getReason());
     }
 
     @Test
@@ -239,7 +240,7 @@ class AuthServiceImplTest {
         when(userRepository.findByUserId(1L)).thenReturn(Optional.of(user));
         when(userRepository.save(any(User.class))).thenReturn(user);
 
-        User result = authService.updateProfile(1L, "New Name", "New Bio", "123456");
+        User result = authService.updateProfile(1L, "New Name", "New Bio", "123456", "Headline", "Expertise");
         assertEquals("New Name", result.getFullName());
         assertEquals("New Bio", result.getBio());
     }
@@ -258,14 +259,14 @@ class AuthServiceImplTest {
         when(jwtTokenProvider.validateToken(any())).thenReturn("1");
         when(userRepository.findByUserId(1L)).thenReturn(Optional.empty());
 
-        assertThrows(RuntimeException.class, () -> authService.refreshToken("token"));
+        assertThrows(ResponseStatusException.class, () -> authService.refreshToken("token"));
     }
 
     @Test
     @DisplayName("ChangePassword - Should throw exception if user not found")
     void testChangePasswordUserNotFound() {
         when(userRepository.findByUserId(1L)).thenReturn(Optional.empty());
-        assertThrows(RuntimeException.class, () -> authService.changePassword(1L, "old", "new"));
+        assertThrows(ResponseStatusException.class, () -> authService.changePassword(1L, "old", "new"));
     }
 
     @Test
@@ -275,20 +276,20 @@ class AuthServiceImplTest {
         user.setPasswordHash(passwordEncoder.encode("correct"));
         when(userRepository.findByUserId(1L)).thenReturn(Optional.of(user));
 
-        assertThrows(RuntimeException.class, () -> authService.changePassword(1L, "wrong", "new"));
+        assertThrows(ResponseStatusException.class, () -> authService.changePassword(1L, "wrong", "new"));
     }
 
     @Test
     @DisplayName("UpdateProfile - Should throw exception if user not found")
     void testUpdateProfileUserNotFound() {
         when(userRepository.findByUserId(1L)).thenReturn(Optional.empty());
-        assertThrows(RuntimeException.class, () -> authService.updateProfile(1L, "name", "bio", "123"));
+        assertThrows(ResponseStatusException.class, () -> authService.updateProfile(1L, "name", "bio", "123", "head", "exp"));
     }
 
     @Test
     @DisplayName("DeleteUser - Should throw exception if user not found")
     void testDeleteUserNotFound() {
         when(userRepository.existsById(1L)).thenReturn(false);
-        assertThrows(RuntimeException.class, () -> authService.deleteUser(1L));
+        assertThrows(ResponseStatusException.class, () -> authService.deleteUser(1L));
     }
 }

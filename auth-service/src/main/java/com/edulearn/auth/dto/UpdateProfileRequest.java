@@ -12,30 +12,6 @@ public class UpdateProfileRequest {
     private String fullName;
     private String bio;
     private String mobile;
-	public Long getUserId() {
-		return userId;
-	}
-	public void setUserId(Long userId) {
-		this.userId = userId;
-	}
-	public String getFullName() {
-		return fullName;
-	}
-	public void setFullName(String fullName) {
-		this.fullName = fullName;
-	}
-	public String getBio() {
-		return bio;
-	}
-	public void setBio(String bio) {
-		this.bio = bio;
-	}
-	public String getMobile() {
-		return mobile;
-	}
-	public void setMobile(String mobile) {
-		this.mobile = mobile;
-	}
-    
-    
+    private String headline;
+    private String expertise;
 }
