@@ -1,0 +1,190 @@
+package com.edulearn.notification.service;
+
+import com.edulearn.notification.entity.Notification;
+import com.edulearn.notification.repository.NotificationRepository;
+import com.edulearn.notification.event.EnrollmentEvent;
+import com.edulearn.notification.event.PaymentEvent;
+import com.edulearn.notification.event.QuizResultEvent;
+import com.edulearn.notification.event.CertificateEvent;
+import com.edulearn.notification.dto.NotificationDto;
+import com.edulearn.notification.config.RabbitMQConfig;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.event.EventListener;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.stereotype.Service;
+import java.util.List;
+
+@Service
+public class NotificationServiceImpl implements NotificationService {
+
+    @Autowired
+    private NotificationRepository notificationRepository;
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    @RabbitListener(queues = RabbitMQConfig.QUEUE)
+    public void handleNotification(NotificationDto dto) {
+        System.out.println("[NotificationService] Received from RabbitMQ: type=" + dto.getType()
+                + ", title=" + dto.getTitle() + ", message=" + dto.getMessage());
+
+        // Admin-targeted notifications: userId=1 is a placeholder that means "broadcast to all admins"
+        if (dto.getUserId() != null && dto.getUserId().longValue() == 1L
+                && dto.getType() != null
+                && (dto.getType().contains("ADMIN") || dto.getType().contains("PENDING"))) {
+            try {
+                @SuppressWarnings("unchecked")
+                java.util.Map<?, ?> response = restTemplate.getForObject(
+                        "http://localhost:8081/auth/users/role/ADMIN", java.util.Map.class);
+
+                if (response != null && response.get("data") instanceof java.util.List) {
+                    java.util.List<?> admins = (java.util.List<?>) response.get("data");
+                    if (admins.isEmpty()) {
+                        System.err.println("[NotificationService] WARNING: No admins found in auth-service response.");
+                    }
+                    for (Object adminObj : admins) {
+                        java.util.Map<?, ?> admin = (java.util.Map<?, ?>) adminObj;
+                        Long realAdminId = Long.valueOf(admin.get("userId").toString());
+                        System.out.println("[NotificationService] Sending notification to admin userId=" + realAdminId);
+                        sendNotification(
+                                realAdminId,
+                                dto.getType(),
+                                dto.getTitle(),
+                                dto.getMessage(),
+                                dto.getRelatedEntityId(),
+                                dto.getRelatedEntityType());
+                    }
+                } else {
+                    System.err.println("[NotificationService] WARNING: auth-service returned no 'data' list for /auth/users/role/ADMIN.");
+                }
+            } catch (Exception e) {
+                System.err.println("[NotificationService] ERROR: Could not reach auth-service to look up admins: " + e.getMessage()
+                        + ". Notification dropped — ensure auth-service is running on port 8081.");
+                // NOTE: Intentionally NOT falling back to a hardcoded ID here.
+                // A wrong hardcoded ID would silently deliver notifications to the wrong user.
+            }
+        } else {
+            sendNotification(
+                    dto.getUserId(),
+                    dto.getType(),
+                    dto.getTitle(),
+                    dto.getMessage(),
+                    dto.getRelatedEntityId(),
+                    dto.getRelatedEntityType());
+        }
+    }
+
+    @Override
+    public Notification sendNotification(Long userId, String type, String title,
+            String message, Long relatedEntityId,
+            String relatedEntityType) {
+        Notification n = new Notification();
+        n.setUserId(userId);
+        n.setType(type);
+        n.setTitle(title);
+        n.setMessage(message);
+        n.setIsRead(false);
+        n.setRelatedEntityId(relatedEntityId);
+        n.setRelatedEntityType(relatedEntityType);
+        return notificationRepository.save(n);
+    }
+
+    @Override
+    public List<Notification> getNotificationsByUser(Long userId) {
+        return notificationRepository.findByUserIdOrderByCreatedAtDesc(userId);
+    }
+
+    @Override
+    public List<Notification> getUnreadNotifications(Long userId) {
+        return notificationRepository.findByUserIdAndIsRead(userId, false);
+    }
+
+    @Override
+    public int getUnreadCount(Long userId) {
+        return notificationRepository.countByUserIdAndIsRead(userId, false);
+    }
+
+    @Override
+    public void markAsRead(Long notificationId) {
+        Notification n = notificationRepository.findById(notificationId)
+                .orElseThrow(() -> new RuntimeException("Notification not found"));
+        n.setIsRead(true);
+        notificationRepository.save(n);
+    }
+
+    @Override
+    public void markAllAsRead(Long userId) {
+        List<Notification> unread = notificationRepository.findByUserIdAndIsRead(userId, false);
+        unread.forEach(n -> n.setIsRead(true));
+        notificationRepository.saveAll(unread);
+    }
+
+    @Override
+    public void deleteNotification(Long notificationId) {
+        notificationRepository.deleteById(notificationId);
+    }
+
+    @Override
+    public List<Notification> getNotificationsByType(Long userId, String type) {
+        return notificationRepository.findByUserIdAndType(userId, type);
+    }
+
+    // ==================== EVENT LISTENERS (DEFERRED) ====================
+    // NOTE: These listeners are currently INACTIVE.
+    // Cross-service Spring events do not work across microservice boundaries.
+    // Full migration to RabbitMQ/Kafka is deferred.
+    // ====================================================================
+
+    @EventListener
+    @Override
+    public void handleEnrollmentEvent(EnrollmentEvent event) {
+        sendNotification(
+                event.getStudentId(),
+                "ENROLLMENT",
+                "Enrolled successfully!",
+                "You have enrolled in " + event.getCourseTitle() + ". Start learning now!",
+                event.getCourseId(),
+                "COURSE");
+    }
+
+    @EventListener
+    @Override
+    public void handlePaymentEvent(PaymentEvent event) {
+        sendNotification(
+                event.getStudentId(),
+                "PAYMENT",
+                "Payment successful",
+                "Payment of ₹" + event.getAmount() + " for " + event.getCourseTitle() + " was successful.",
+                null,
+                null);
+    }
+
+    @EventListener
+    @Override
+    public void handleQuizResultEvent(QuizResultEvent event) {
+        String resultText = event.isPassed() ? "Passed" : "Failed";
+        sendNotification(
+                event.getStudentId(),
+                "QUIZ_RESULT",
+                "Quiz result: " + resultText + " (" + event.getScore() + "%)",
+                "You scored " + event.getScore() + "% on '" + event.getQuizTitle() + "'. " +
+                        (event.isPassed() ? "Congratulations!" : "Keep practicing!"),
+                null,
+                null);
+    }
+
+    @EventListener
+    @Override
+    public void handleCertificateEvent(CertificateEvent event) {
+        sendNotification(
+                event.getStudentId(),
+                "CERTIFICATE",
+                "Certificate earned!",
+                "Congratulations! Your certificate for '" + event.getCourseName() + "' has been issued. " +
+                        "Verification code: " + event.getVerificationCode(),
+                null,
+                "CERTIFICATE");
+    }
+}
