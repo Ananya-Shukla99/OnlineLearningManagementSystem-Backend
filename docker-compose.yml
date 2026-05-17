@@ -1,5 +1,7 @@
 services:
-  # Infrastructure
+  # ----------------------------------------------------
+  # Databases & Infrastructure (Optimized)
+  # ----------------------------------------------------
   mysql:
     image: mysql:8.0
     container_name: edulearn-mysql
@@ -8,35 +10,57 @@ services:
       MYSQL_DATABASE: edulearn_auth
     ports:
       - "3306:3306"
+    deploy:
+      resources:
+        limits:
+          memory: 180M
     volumes:
       - mysql-data:/var/lib/mysql
 
   rabbitmq:
-    image: rabbitmq:3-management
+    image: rabbitmq:3-management-alpine
     container_name: edulearn-rabbitmq
     ports:
       - "5672:5672"
-      - "15672:15672"
+    deploy:
+      resources:
+        limits:
+          memory: 180M
 
-  # Core Services
+  # ----------------------------------------------------
+  # Core Infrastructure Services
+  # ----------------------------------------------------
   eureka-server:
     build: ./eureka-server
     container_name: eureka-server
     ports:
       - "8761:8761"
     environment:
+      - JAVA_OPTS=-Xms64m -Xmx96m -XX:+UseSerialGC -Xss256k -XX:MaxMetaspaceSize=64m
       - EUREKA_CLIENT_REGISTER_WITH_EUREKA=false
 
-  # Microservices
+  api-gateway:
+    build: ./api-gateway
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    depends_on: [eureka-server]
+    environment:
+      - JAVA_OPTS=-Xms64m -Xmx128m -XX:+UseSerialGC -Xss256k -XX:MaxMetaspaceSize=64m
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
+      - ALLOWED_ORIGIN=${ALLOWED_ORIGIN}
+
+  # ----------------------------------------------------
+  # Microservices (Extremely RAM Optimized for Free Tier)
+  # ----------------------------------------------------
   auth-service:
     build: ./auth-service
     container_name: auth-service
     ports:
       - "8081:8081"
-    depends_on:
-      - mysql
-      - eureka-server
+    depends_on: [mysql, eureka-server]
     environment:
+      - JAVA_OPTS=-Xms64m -Xmx128m -XX:+UseSerialGC -Xss256k -XX:MaxMetaspaceSize=64m
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/edulearn_auth?createDatabaseIfNotExist=true
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
@@ -48,10 +72,9 @@ services:
     container_name: course-service
     ports:
       - "8082:8082"
-    depends_on:
-      - mysql
-      - eureka-server
+    depends_on: [mysql, eureka-server]
     environment:
+      - JAVA_OPTS=-Xms64m -Xmx128m -XX:+UseSerialGC -Xss256k -XX:MaxMetaspaceSize=64m
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/edulearn_course?createDatabaseIfNotExist=true
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
 
@@ -60,10 +83,9 @@ services:
     container_name: lesson-service
     ports:
       - "8083:8083"
-    depends_on:
-      - mysql
-      - eureka-server
+    depends_on: [mysql, eureka-server]
     environment:
+      - JAVA_OPTS=-Xms64m -Xmx128m -XX:+UseSerialGC -Xss256k -XX:MaxMetaspaceSize=64m
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/edulearn_lesson?createDatabaseIfNotExist=true
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
 
@@ -72,10 +94,9 @@ services:
     container_name: enrollment-service
     ports:
       - "8084:8084"
-    depends_on:
-      - mysql
-      - eureka-server
+    depends_on: [mysql, eureka-server]
     environment:
+      - JAVA_OPTS=-Xms64m -Xmx128m -XX:+UseSerialGC -Xss256k -XX:MaxMetaspaceSize=64m
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/edulearn_enrollment?createDatabaseIfNotExist=true
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
 
@@ -84,10 +105,9 @@ services:
     container_name: payment-service
     ports:
       - "8085:8085"
-    depends_on:
-      - mysql
-      - eureka-server
+    depends_on: [mysql, eureka-server]
     environment:
+      - JAVA_OPTS=-Xms64m -Xmx128m -XX:+UseSerialGC -Xss256k -XX:MaxMetaspaceSize=64m
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/edulearn_payment?createDatabaseIfNotExist=true
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
 
@@ -96,10 +116,9 @@ services:
     container_name: progress-service
     ports:
       - "8086:8086"
-    depends_on:
-      - mysql
-      - eureka-server
+    depends_on: [mysql, eureka-server]
     environment:
+      - JAVA_OPTS=-Xms64m -Xmx128m -XX:+UseSerialGC -Xss256k -XX:MaxMetaspaceSize=64m
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/edulearn_progress?createDatabaseIfNotExist=true
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
 
@@ -108,10 +127,9 @@ services:
     container_name: notification-service
     ports:
       - "8087:8087"
-    depends_on:
-      - rabbitmq
-      - eureka-server
+    depends_on: [rabbitmq, eureka-server]
     environment:
+      - JAVA_OPTS=-Xms64m -Xmx128m -XX:+UseSerialGC -Xss256k -XX:MaxMetaspaceSize=64m
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
 
   discussion-service:
@@ -119,23 +137,11 @@ services:
     container_name: discussion-service
     ports:
       - "8088:8088"
-    depends_on:
-      - mysql
-      - eureka-server
+    depends_on: [mysql, eureka-server]
     environment:
+      - JAVA_OPTS=-Xms64m -Xmx128m -XX:+UseSerialGC -Xss256k -XX:MaxMetaspaceSize=64m
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/edulearn_discussion?createDatabaseIfNotExist=true
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
-
-  api-gateway:
-    build: ./api-gateway
-    container_name: api-gateway
-    ports:
-      - "8080:8080"
-    depends_on:
-      - eureka-server
-    environment:
-      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://eureka-server:8761/eureka/
-      - ALLOWED_ORIGIN=${ALLOWED_ORIGIN}
 
 volumes:
   mysql-data:
