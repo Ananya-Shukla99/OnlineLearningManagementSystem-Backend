@@ -17,9 +17,7 @@ pipeline {
         stage('Compile Backend') {
             steps {
                 // Compiles all 10 microservices into JAR files on the AWS server
-                dir('backend') {
-                    sh 'mvn clean package -DskipTests'
-                }
+                sh 'mvn clean package -DskipTests'
             }
         }
 
@@ -27,9 +25,7 @@ pipeline {
             steps {
                 // This builds the Docker images and starts all containers directly on the EC2
                 // --build ensures it uses the fresh JAR files we just compiled
-                dir('backend') {
-                    sh 'docker-compose up -d --build'
-                }
+                sh 'docker-compose up -d --build'
             }
         }
 
