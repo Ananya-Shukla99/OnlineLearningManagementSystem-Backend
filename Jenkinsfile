@@ -32,7 +32,7 @@ pipeline {
             steps {
                 // This builds the Docker images and starts all containers directly on the EC2
                 // --build ensures it uses the fresh JAR files we just compiled
-                sh 'docker-compose up -d --build'
+                sh 'docker compose up -d --build'
             }
         }
 
