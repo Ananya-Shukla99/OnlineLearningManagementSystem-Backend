@@ -17,7 +17,14 @@ pipeline {
         stage('Compile Backend') {
             steps {
                 // Compiles all 10 microservices into JAR files on the AWS server
-                sh 'mvn clean package -DskipTests'
+                sh '''
+                    for service in eureka-server api-gateway auth-service course-service lesson-service enrollment-service payment-service notification-service progress-service discussion-service; do
+                        echo "================ Building $service ================"
+                        cd "$service"
+                        mvn clean package -DskipTests
+                        cd ..
+                    done
+                '''
             }
         }
 
