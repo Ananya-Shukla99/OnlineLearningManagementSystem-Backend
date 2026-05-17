@@ -21,7 +21,7 @@ pipeline {
                     for service in eureka-server api-gateway auth-service course-service lesson-service enrollment-service payment-service notification-service progress-service discussion-service; do
                         echo "================ Building $service ================"
                         cd "$service"
-                        mvn clean package -DskipTests
+                        mvn clean install -DskipTests
                         cd ..
                     done
                 '''
